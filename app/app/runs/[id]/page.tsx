@@ -449,15 +449,18 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
             </div>
             <div className="mut">
               auth: {credLine(s.credential_source)} · engine {s.engine ?? 'claude'}
-              {' · '}{s.fixture_id
-                ? 'fixture 모드 — 외부 API 호출 없음'
-                : <span className="wrn">live 모드 — 실제 API 를 불렀다</span>}
+              {/* 설명은 툴팁으로 내린다 — 값만 남긴다. 머리줄 모드 배지와 같은 규칙이다. */}
+              {' · '}live{' '}
+              {s.fixture_id
+                ? <span className="ok" data-tip="외부 API 를 부르지 않았다 · 스냅샷을 읽었다."
+                    tabIndex={0}>false</span>
+                : <span className="wrn" data-tip="실제 API 를 불렀다." tabIndex={0}>true</span>}
               {!dead && <Cursor />}
             </div>
           </div>
           <div className="row" style={{ marginTop: 13, fontSize: 11, gap: 10 }}>
             {/*
-              「live true — 이 서버가 실행 중」을 뺐다. 바로 윗줄의 「live 모드」와
+              여기 있던 「live true — 이 서버가 실행 중」을 뺐다. 윗줄의 live 표시와
               같은 낱말이 뜻만 다르게 두 번 나와 읽는 사람을 헷갈리게 했다.
               뺀 뜻은 사라지지 않는다 — 이 서버가 들고 있지 않은 실행은
               store.read() 가 곧바로 interrupted 로 바꾸므로 상태 배지와 중단 패널이 말한다.
