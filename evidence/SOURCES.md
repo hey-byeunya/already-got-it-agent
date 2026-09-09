@@ -1,45 +1,48 @@
 # 출처와 이미지 사용 기록
 
 내보낸 결과와 함께 보관한다. 자료를 나중에 재확인할 수 있게 한다.
+기준 실행: live-t2 (2026-09-10, 실제 API, 구독 로그인, 승인 없음).
 
-- 조사 기준 시각: TODO (시간대 포함)
-- 조사 기간: TODO ~ TODO
-- 선택한 소식: TODO
+- 조사 기준 시각: 2026-09-10T01:30+09:00 (시간대 Asia/Seoul)
+- 조사 기간: 2026-09-02 ~ 2026-09-09
+- 선택한 소식: 아래 사실 근거표의 카드 2·6 (Next.js critical RCE 2건, vitest medium 1건).
+  카드에 올리지 않은 권고(react XSS 2020년, 구형 next 권고)는 기간 밖·해당 없음으로 제외했다.
 
 ---
 
 ## 사실 근거
 
-카드의 핵심 문장별로 근거를 남긴다.
+카드의 핵심 문장별로 근거를 남긴다. 서버는 존재(실제 호출·값)까지만 대조하고,
+값이 문장과 의미상 이어지는지는 여기서 사람이 확인했다.
 
 | 카드 | 핵심 문장 | 근거 링크 | 게시일 | 실제 발표·변경일 | 구분 |
 |---|---|---|---|---|---|
-| 1 | TODO | TODO | TODO | TODO | 확인한 사실 / 발표 주체의 주장 / 미확인 |
-| 2 | TODO | TODO | TODO | TODO | TODO |
-| 3 | TODO | TODO | TODO | TODO | TODO |
-| 4 | TODO | TODO | TODO | TODO | TODO |
-| 5 | TODO | TODO | TODO | TODO | TODO |
+| 2 | Next.js 크리티컬 RCE 보안 권고 2건, 09-08 신규 게시 | https://github.com/advisories/GHSA-2xp9-vwfh-vxw4 · https://github.com/advisories/GHSA-p293-qw3h-jr36 | 2026-09-08 | 게시일과 동일 (npm·DB 게시일 확인) | 확인한 사실 |
+| 3 | 배포 0건(사실), 함수 오류 수는 확인 못 함 | Vercel API (`unavailable_fields: ["function_errors"]`) | — (조회 실패라 날짜 없음) | — | 확인 못 함 (0건이 아님) |
+| 4 | 가입·활성·위시·보유 전부 0, 전 기간 활성 1명 | Supabase 집계 RPC (`totals`, `previous_period_totals`) | — (집계값, 게시물 아님) | 2026-09-02~09 직전 기간 대조 | 확인한 사실 |
+| 5 | 커밋·PR·이슈 0건, 코드 변경 없음 | GitHub API (hey-byeunya/already-got-it) | — (조회 결과) | — | 확인한 사실 |
+| 6 | vitest medium 경로 순회 권고 (09-08 게시) | https://github.com/advisories/GHSA-82fw-gwwq-j7x9 | 2026-09-08 | 게시일과 동일 | 확인한 사실 |
 
 확인하지 못한 날짜는 **미확인**으로 남긴다.
 「모두 사용 가능」·「무료」·「성능 향상」처럼 의미가 큰 문장은 근거와 대조한 결과를 적는다.
+→ 이번 회차에 해당 문장 없음. "영향 버전 미확인"(카드 2)은 미확인으로 표시했다.
 
 ## 이미지 사용 기록
 
-「저작권 없음」으로 묶지 않는다. 아래 세 가지로 구분한다.
+외부 이미지·스톡·생성 API를 쓰지 않는다. 카드 그림은 전부 로컬 산출물이다.
 
 | 카드 | 파일 | 구분 | 도구 · 출처 | 사용 조건 |
 |---|---|---|---|---|
-| 1 | TODO.png | 생성 이미지 / CC0·퍼블릭 도메인 / 라이선스 허용 스톡 | TODO | TODO |
-| 2 | TODO.png | TODO | TODO | TODO |
-| 3 | TODO.png | TODO | TODO | TODO |
-| 4 | TODO.png | TODO | TODO | TODO |
-| 5 | TODO.png | TODO | TODO | TODO |
+| 1 | `cards/01.png` (표지 삽화) | 로컬 생성 SVG (agy로 미리 만들어 커밋) | `mcp-server/assets/cover.svg` (D23) | 자작. 라이선스 제약 없음 |
+| 3·4 | 차트 영역 | 로컬 렌더링 SVG | `render_chart` (조회값 대조 통과분만) | 자작. 근거 없는 수치는 그리지 않음 |
+| 전 카드 | 배경·격자·텍스트 | 로컬 SVG 합성 | `compose_card` | 자작 |
 
 생성 이미지도 사용한 도구의 조건을 기록한다.
 생성한 그림을 실제 발표 현장이나 제품 화면을 촬영한 자료처럼 표시하지 않는다.
+→ 표지 삽화는 장식용 격자이며, 카드 어디에도 "현장 사진" 표방이 없다.
 
 ## 생성 요청 기록
 
 | 카드 | 요청 요약 (장면·색감·구도·여백) | 결과 파일 | 파일 열림 확인 |
 |---|---|---|---|
-| 1 | TODO | TODO | TODO |
+| 1 | 재고 격자 모티프, 남색(#0f172a) 배경용 투명, 둥근 사각형, 텍스트·스크립트 금지 (`scripts/generate-cover.mjs` 프롬프트) | `mcp-server/assets/cover.svg` (15,668B) | XML 파싱 + `cards/01.png` (95,948B) opened_ok |

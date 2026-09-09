@@ -27,7 +27,7 @@ cd ../app && npm install && npm run dev
 cd ../agent && node dist/src/run.js --fixture f2-deploy-fail
 ```
 
-브라우저에서 `http://localhost:3000`을 연다.
+브라우저에서 `http://localhost:3010`을 연다.
 
 Claude Code에서 같은 MCP 서버를 붙여 쓰려면 `.mcp.json`에 등록한다 (확장① 증거).
 
@@ -100,6 +100,13 @@ cd agent && OPS_MODE=live node dist/src/run.js --run-id live-YYYYMMDD
 - 지어낸 근거 카드가 `source_not_found`로 거절된 뒤 모델이 내용을 바꿔 완성했다 (P1-7(a) live 증거).
 - 이슈 생성 제안 2건은 승인 없이 거절됐고 `permission_denials` 2건이 기록에 남았다.
 
+두 번째 live 실행 (2026-09-10, `live-t2`, 구독 로그인, 승인 없음):
+
+- `done (success)` — 도구 호출 22회, 실행 178.5초, 비용 $0.3744 추정(미청구).
+- RPC 해소 후라 사용자 지표 카드가 정상 수치로 나왔다 (전부 0 + 차트, 전 기간 활성 1명 병기).
+- 모델이 GHSA ID를 `field`에 넣어 `invalid_source_field`로 2번 거절당하고 고쳐서 완성했다.
+- 이슈 제안 1건 거절, `permission_denials` 1건. 전회($0.79)의 절반 — 같은 조건도 편차가 크다.
+
 ## 픽스처 실행 모드
 
 평가와 캡처를 재현할 수 있게, 외부 API 응답과 기준 시각을 픽스처로 고정 주입하는 모드를 둔다.
@@ -171,6 +178,8 @@ cd agent && node dist/src/run.js --fixture f2-deploy-fail
 | 종료 조건 실제 발동 | `evidence/runs/cap-stopped/` (`maxToolCalls`) | ✅ 실제 모델 |
 | 근거 대조를 통과한 차트 | `evidence/runs/charts/` 3장 (`source_verified`) | ✅ 실제 모델 |
 | 기준 실행 12시행 + 원고 전문 | `eval-results/E0/` | ✅ 실제 모델 |
+| live 브리핑 2편 (카드 6장·PNG·ZIP) | `runs/live-t1/`·`runs/live-t2/` (gitignore라 로컬에만) | ✅ 실제 모델 |
+| Supabase 집계 반환 확인 | `smoke-live` 3번 + 직접 호출 (7일 series, 원시 행 없음) | ✅ 실제 API |
 | 화면 — 질문 대기·승인·중단 재개·비용·차트·로그 | (캡처 예정) | ⏳ 화면에서 실행 후 |
 | Claude Code 에서 MCP 서버 붙는 화면 | (캡처 예정) | ⏳ |
 
