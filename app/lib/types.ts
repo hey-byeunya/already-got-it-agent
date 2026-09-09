@@ -69,8 +69,14 @@ export type RunState = {
   charts: { card_no: number; svg_path: string }[];
   /** 이 실행을 이 서버 프로세스가 돌리고 있는가. 재시작 감지에 쓴다. */
   live: boolean;
-  /** 어느 자격증명으로 돌았는가. 비용이 어느 지갑에서 빠지는지가 달라진다. */
-  credential_source?: 'api_key' | 'auth_token' | 'stored_login';
+  /**
+   * 어느 자격증명으로 돌았는가. 비용이 어느 지갑에서 빠지는지가 달라진다.
+   *
+   * opencode 경로는 Anthropic 자격증명을 쓰지 않는다 — opencode 자체 인증이다.
+   * 전에는 이 값을 안 채워서 화면이 「기록되지 않음」으로 그렸고,
+   * 마치 뭔가 빠진 것처럼 보였다.
+   */
+  credential_source?: 'api_key' | 'auth_token' | 'stored_login' | 'opencode';
   /**
    * 이 실행에 걸린 상한. 화면의 예산 게이지가 쓰는 **분모**다.
    * 전에는 '실행 시작' 트레이스의 문자열 안에만 있어서 값으로 꺼낼 수 없었다.

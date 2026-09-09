@@ -9,7 +9,8 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runBriefing } from 'already-got-it-ops-agent/engine';
 import type { Decider, QuestionSpec } from 'already-got-it-ops-agent/gate';
-import { loadEnvLocal, readEnvLocal } from 'already-got-it-ops-agent/env';
+import { loadEnvLocal } from 'already-got-it-ops-agent/env';
+import { liveWritesEnabled, opsMode } from './mode';
 import { limitsFromEnv } from 'already-got-it-ops-agent/limits';
 import { startOpencode } from './opencode';
 import { FIXTURES_DIR, MCP_ENTRY, PROJECT_ROOT, RUNS_DIR } from './paths';
@@ -23,7 +24,10 @@ function loadEnv(): void {
   loadEnvLocal(PROJECT_ROOT);
 }
 
-export type CredentialSource = 'api_key' | 'auth_token' | 'stored_login';
+// 모드 판정은 mode.ts 한 곳에 있다. 여기서는 부르는 쪽 편의를 위해 다시 내보낸다.
+export { liveWritesEnabled, opsMode };
+
+export type CredentialSource = 'api_key' | 'auth_token' | 'stored_login' | 'opencode';
 
 /**
  * 어느 자격증명으로 돌게 될지 알린다.
@@ -34,28 +38,6 @@ export type CredentialSource = 'api_key' | 'auth_token' | 'stored_login';
  *
  * 어느 쪽인지는 비용이 어느 지갑에서 빠지는지를 결정하므로 화면에 표시한다.
  */
-/**
- * 지금 어느 모드로 도는가. 새 실행이 fixture 를 읽을지 실제 API 를 부를지 결정한다.
- *
- * **파일을 매번 다시 읽는다.** process.env 를 보면 서버가 뜰 때의 값이 남아 있어,
- * `.env.local` 을 fixture 로 바꿔도 화면이 계속 live 라고 말한다 — 실제로 겪었다.
- * 모드를 틀리게 말하는 배지는 없느니만 못하다.
- *
- * 화면 표시와 실제 실행이 **같은 값**을 쓰게 childEnv 도 이 함수를 부른다.
- */
-export function opsMode(): 'fixture' | 'live' {
-  loadEnv();
-  const fromFile = readEnvLocal(PROJECT_ROOT, 'OPS_MODE');
-  const raw = (fromFile ?? process.env.OPS_MODE ?? '').trim();
-  return raw === 'live' ? 'live' : 'fixture';
-}
-
-/** 실제 쓰기가 켜져 있는가. 승인 창이 「진짜 이슈가 만들어진다」를 말할지 정한다. */
-export function liveWritesEnabled(): boolean {
-  loadEnv();
-  const fromFile = readEnvLocal(PROJECT_ROOT, 'OPS_ALLOW_LIVE_WRITES');
-  return (fromFile ?? process.env.OPS_ALLOW_LIVE_WRITES ?? '').trim() === '1';
-}
 
 export function credentialSource(): CredentialSource {
   loadEnv();
@@ -109,6 +91,9 @@ export function start(opts: StartOptions): void {
   // opencode 엔진은 별도 분기로 돈다 — SDK 게이트·질문 대기가 없는 경로다.
   if (engine === 'opencode' && !resumeSessionId) {
     store.update(runId, (s) => { s.status = 'planning'; });
+    // opencode 는 Anthropic 자격증명을 쓰지 않는다. 비워 두면 화면이 「기록되지 않음」으로
+    // 그려 뭔가 빠진 것처럼 보인다 — 어느 인증으로 도는지 분명히 적는다.
+    store.update(runId, (s) => { s.credential_source = 'opencode'; });
     startOpencode({ runId, fixtureId, goal, model });
     return;
   }

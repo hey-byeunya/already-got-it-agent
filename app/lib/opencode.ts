@@ -15,6 +15,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PROJECT_ROOT, RUNS_DIR, FIXTURES_DIR } from './paths';
+import { opsMode } from './mode';
 import * as store from './store';
 import { parseOpencodeLine } from './opencode-events';
 
@@ -24,8 +25,16 @@ function opencodeBin(): string {
   return process.env.OPS_OPENCODE_BIN?.trim() || 'opencode';
 }
 
-/** MCP `ops` 서버를 그때그때 붙이는 인라인 설정. 경로는 절대값으로 박는다. */
-function configContent(runsDir: string, fixturesDir: string, fixtureId: string | null): string {
+/**
+ * MCP `ops` 서버를 그때그때 붙이는 인라인 설정. 경로는 절대값으로 박는다.
+ *
+ * 모드는 claude 경로와 **같은 판정**을 쓴다. 전에는 'fixture' 를 박아 두어서,
+ * 시작 화면이 LIVE 라고 말해도 opencode 실행만 조용히 픽스처로 돌았다.
+ * 쓰기 도구 2개가 이미 꺼져 있으므로 live 라도 이 경로는 읽기 전용이다.
+ */
+function configContent(
+  runsDir: string, fixturesDir: string, fixtureId: string | null, mode: 'fixture' | 'live',
+): string {
   return JSON.stringify({
     $schema: 'https://opencode.ai/config.json',
     mcp: {
@@ -34,8 +43,9 @@ function configContent(runsDir: string, fixturesDir: string, fixtureId: string |
         command: ['node', 'mcp-server/dist/src/index.js'],
         enabled: true,
         environment: {
-          OPS_MODE: 'fixture',
-          ...(fixtureId ? { OPS_FIXTURE_ID: fixtureId } : {}),
+          OPS_MODE: mode,
+          // live 모드에서 fixture_id 를 넘기면 서버가 fixture_in_live_mode 로 거절한다.
+          ...(mode === 'fixture' && fixtureId ? { OPS_FIXTURE_ID: fixtureId } : {}),
           OPS_RUNS_DIR: runsDir,
           OPS_FIXTURES_DIR: fixturesDir,
           GITHUB_ALLOWED_REPOS: process.env.GITHUB_ALLOWED_REPOS ?? 'hey-byeunya/already-got-it',
@@ -76,7 +86,7 @@ export function startOpencode(opts: OpencodeStartOptions): void {
     + `- 지표 카드는 render_chart 로 실제 SVG 까지 그리고, 카드는 compose_card 로 한 장씩 만든 뒤 export_cardnews 를 한 번 부른다.`;
 
   const env: NodeJS.ProcessEnv = { ...process.env };
-  env.OPENCODE_CONFIG_CONTENT = configContent(runsDir, FIXTURES_DIR, fixtureId);
+  env.OPENCODE_CONFIG_CONTENT = configContent(runsDir, FIXTURES_DIR, fixtureId, opsMode());
   // 실측: GOOGLE_API_KEY 만 있고 GOOGLE_GENERATIVE_AI_API_KEY 가 없으면
   // google provider 가 인증 오류로 죽는다. 같은 값이면 이어 준다.
   if (!env.GOOGLE_GENERATIVE_AI_API_KEY && env.GOOGLE_API_KEY) {

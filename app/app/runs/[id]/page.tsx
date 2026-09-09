@@ -449,7 +449,9 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
             </div>
             <div className="mut">
               auth: {credLine(s.credential_source)} · engine {s.engine ?? 'claude'}
-              {' · '}{s.fixture_id ? 'fixture 모드 — 외부 API 호출 없음' : 'live 모드'}
+              {' · '}{s.fixture_id
+                ? 'fixture 모드 — 외부 API 호출 없음'
+                : <span className="wrn">live 모드 — 실제 API 를 불렀다</span>}
               {!dead && <Cursor />}
             </div>
           </div>
@@ -1054,11 +1056,12 @@ function CardsPane({ cards, charts, runId, links, exports: ex, exporting, busy, 
   );
 }
 
-function credLine(src?: 'api_key' | 'auth_token' | 'stored_login'): string {
+function credLine(src?: 'api_key' | 'auth_token' | 'stored_login' | 'opencode'): string {
   switch (src) {
     case 'api_key': return 'ANTHROPIC_API_KEY (API 크레딧에서 빠진다)';
     case 'auth_token': return 'ANTHROPIC_AUTH_TOKEN';
     case 'stored_login': return '저장된 로그인(구독)';
+    case 'opencode': return 'opencode 자체 인증 (Anthropic 자격증명을 쓰지 않는다)';
     default: return '기록되지 않음';
   }
 }

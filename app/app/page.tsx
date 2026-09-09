@@ -146,7 +146,9 @@ export default function Home() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        fixture_id: opts.fixture_id,
+        // live 모드에서는 픽스처를 보내지 않는다. 보내면 실행 기록에 fixture_id 가 남아
+        // 프롬프트 줄이 «--fixture ...» 로, 화면이 «fixture 모드» 로 잘못 말한다.
+        fixture_id: live ? undefined : opts.fixture_id,
         focus: opts.focus || undefined,
         engine: opts.engine,
         model: opts.model || undefined,
@@ -372,6 +374,8 @@ export default function Home() {
                   단가표가 정본이다 — input·output 이 둘 다 0 인 것만 담았다.
                   <br /><span className="wrn">주의</span> opencode 모드는 질문 대기·승인 없이 끝까지 간다.
                   이슈 생성·되돌리기는 쓸 수 없고 제안은 본문에 적힌다.
+                  {live && <><br /><span className="wrn">live 모드</span>라 사람이 보지 않는 채로
+                  실제 API 를 읽는다 (쓰기는 꺼져 있다).</>}
                 </div>
               </>
             )}

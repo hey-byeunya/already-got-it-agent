@@ -450,3 +450,26 @@ Claude Code            ← .mcp.json 에 등록하면 같은 서버를 그대로
 - **미리보기는 모달로**: 카드를 넘겨 가며 훑는 일이라 탭을 오갈 필요가 없다.
   `←`/`→` 로 넘기고 `esc` 로 닫는다.
 - **결정일**: 2026-09-10
+
+## D31. 모드 판정은 **엔진 두 갈래가 같은 함수**를 쓴다 · 픽스처는 서버에서도 막는다
+
+- **증상**: `.env.local` 을 `OPS_MODE=live` 로 바꾸고 opencode 로 돌렸는데,
+  실행 상세가 `run --fixture f2-deploy-fail` · `auth: 기록되지 않음` · `fixture 모드` 라고 적었다.
+  화면이 거짓말한 것이 아니었다 — **그 실행은 정말 픽스처였다.** 원인이 셋이었다.
+- **① opencode 경로가 모드를 무시했다.** `configContent()` 가 `OPS_MODE: 'fixture'` 를 박아 두어서,
+  시작 화면이 `LIVE` 라고 말해도 opencode 실행만 조용히 픽스처로 돌았다.
+  → `opsMode()` 를 넘긴다. claude 경로와 **같은 판정 한 곳**을 쓴다.
+  쓰기 도구 2개(`ops_create_github_issue`·`ops_revert_issue`)는 그대로 꺼 두므로 live 라도 이 경로는 읽기 전용이다.
+- **② 화면이 live 에서도 `fixture_id` 를 보냈다.** 셀렉트를 비활성으로 만들었을 뿐 상태는 남아 있었다.
+  → 화면에서 빼고, **서버에서도 다시 막는다** (`mode === 'live'` 면 `fixture_id` 를 무시하고 `note` 로 알린다).
+  화면만 막으면 API 를 직접 부를 때 그대로 들어와 실행 기록이 잘못 말한다.
+  MCP 서버도 live+fixture 를 `fixture_in_live_mode` 로 거절한다 — 같은 규칙 세 겹.
+- **③ opencode 실행에는 `credential_source` 가 없었다.** claude 경로에서만 적고 있었다.
+  → `'opencode'` 를 값으로 추가하고 「opencode 자체 인증 (Anthropic 자격증명을 쓰지 않는다)」로 적는다.
+  **「기록되지 않음」은 「없음」과 다르다** — 안 적힌 것을 안 적혔다고 말하는 편이 낫다.
+- **순환 참조**: `opencode.ts` 가 `runner.ts` 의 `opsMode` 를 필요로 해 `app/lib/mode.ts` 로 떼어냈다.
+  `runner.ts` 는 그것을 다시 내보내 호출부는 바뀌지 않는다.
+- **확인**: live 로 POST 하니 `note: "live 모드라 fixture_id(f2-deploy-fail)를 무시했다"`,
+  기록은 `fixture_id: null · credential_source: opencode`, 자식 프로세스 환경은 `"OPS_MODE":"live"` 에
+  `OPS_FIXTURE_ID` 없음. 셋 다 실제로 확인했다.
+- **결정일**: 2026-09-10

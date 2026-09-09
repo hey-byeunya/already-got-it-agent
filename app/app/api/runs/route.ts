@@ -74,7 +74,13 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({})) as
     { fixture_id?: string; goal?: string; focus?: string; engine?: string; model?: string;
       since?: string; until?: string };
-  const fixtureId = body.fixture_id ?? null;
+  const mode = opsMode();
+  // live 모드에서는 픽스처를 무시한다. 화면에서 막고 있지만 여기서도 막는다 —
+  // 화면만 막으면 API 를 직접 부를 때 fixture_id 가 그대로 들어와,
+  // 실행 기록이 «--fixture ...» 와 «fixture 모드» 로 잘못 말한다.
+  // MCP 서버도 live 에서 fixture_id 를 fixture_in_live_mode 로 거절한다 (같은 규칙, 세 겹).
+  const fixtureId = mode === 'live' ? null : (body.fixture_id ?? null);
+  const ignoredFixture = mode === 'live' && Boolean(body.fixture_id);
   const runId = `web-${Date.now().toString(36)}`;
   const engine = body.engine === 'opencode' ? 'opencode' : 'claude';
   const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : undefined;
@@ -92,6 +98,12 @@ export async function POST(req: Request) {
 
   store.createRun({ runId, fixtureId, goal, engine, ...(focus ? { focus } : {}), period });
   start({ runId, fixtureId, goal, engine, ...(model ? { model } : {}) });
-  return NextResponse.json({ run_id: runId, period, ...(periodNote ? { note: periodNote } : {}) },
-    { status: 201 });
+  const notes = [
+    periodNote,
+    ignoredFixture ? `live 모드라 fixture_id(${body.fixture_id})를 무시했다` : null,
+  ].filter(Boolean);
+  return NextResponse.json(
+    { run_id: runId, mode, period, ...(notes.length ? { note: notes.join(' · ') } : {}) },
+    { status: 201 },
+  );
 }
