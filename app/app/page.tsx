@@ -49,7 +49,7 @@ type Favorite = {
 /** 픽스처 4종을 요청 프리셋으로 푼 추천 목록. 직접 입력 없이 한 번에 시작한다. */
 const PRESETS: { fixture: string; name: string; desc: string; focus: string }[] = [
   { fixture: 'f1-normal', name: '평범한 주간 점검',
-    desc: '문제가 없을 때 없다고 말하는지 — 억지 진단 경계', focus: '' },
+    desc: '문제가 없을 때 없다고 말하는지 - 억지 진단 경계', focus: '' },
   { fixture: 'f2-deploy-fail', name: '배포 실패 추적',
     desc: '빌드 오류 원문과 복구 여부 · 축 system', focus: '시스템' },
   { fixture: 'f3-metric-drop', name: '지표 급감 살펴보기',
@@ -140,7 +140,7 @@ export default function Home() {
 
   async function startRun(opts: { fixture_id: string; focus?: string; engine: Engine; model?: string }) {
     const p = period();
-    if (p.since >= p.until) { setError('기간이 뒤집혔다 — 시작이 끝보다 앞이어야 한다'); return; }
+    if (p.since >= p.until) { setError('기간이 뒤집혔다 - 시작이 끝보다 앞이어야 한다'); return; }
     setStarting(true); setError(null);
     const res = await fetch('/api/runs', {
       method: 'POST',
@@ -284,7 +284,7 @@ export default function Home() {
                         <button className="chip" onClick={() => void removeRun(r.run_id)}
                           style={confirmDelete === r.run_id
                             ? { borderColor: 'var(--danger)', color: 'var(--danger-ink)' } : undefined}>
-                          {confirmDelete === r.run_id ? '확인 — 한 번 더' : 'del'}
+                          {confirmDelete === r.run_id ? '확인 - 한 번 더' : 'del'}
                         </button>
                       </span>
                     </span>
@@ -397,7 +397,7 @@ export default function Home() {
               {live
                 ? <option value="">— live 에서는 픽스처를 쓰지 않는다</option>
                 : (data?.fixtures ?? []).map((f) => (
-                  <option key={f.id} value={f.id}>{f.id} — {f.label}</option>
+                  <option key={f.id} value={f.id}>{f.id} - {f.label}</option>
                 ))}
             </select>
             <div className="note" style={{ marginTop: 9 }}>
@@ -412,7 +412,7 @@ export default function Home() {
               <SectionHead label="[ PRESETS ]" />
               {live && (
                 <div className="note fnt" style={{ marginBottom: 8 }}>
-                  live 에서는 <span className="ink">--axis</span> 만 적용된다 — 픽스처 이름은 설명일 뿐이다
+                  live 에서는 <span className="ink">--axis</span> 만 적용된다 - 픽스처 이름은 설명일 뿐이다
                 </div>
               )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 11.5 }}>

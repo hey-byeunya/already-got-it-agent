@@ -180,14 +180,14 @@ export function steps(trace: TraceEvent[], status?: string): Step[] {
   const raw: { label: string; done: boolean; waiting?: boolean }[] = [
     { label: 'collect 4-axis', done: collected },
     {
-      label: asked && !answered ? 'ask_user — 답을 기다린다' : 'pick axis',
+      label: asked && !answered ? 'ask_user - 답을 기다린다' : 'pick axis',
       done: answered,
       waiting: asked && !answered,
     },
     { label: 'storyboard', done: composed },
     { label: 'render_chart', done: charted },
     {
-      label: proposed && !decided ? 'propose issue — 승인 대기' : 'propose issue',
+      label: proposed && !decided ? 'propose issue - 승인 대기' : 'propose issue',
       done: decided,
       waiting: proposed && !decided,
     },
@@ -217,8 +217,8 @@ export function resultLine(s: {
     const err = [...s.trace].reverse().find((e) => e.isError);
     return err?.detail?.split('\n')[0]?.slice(0, 80) ?? '실행 실패';
   }
-  if (s.stop_reason) return `${s.stop_reason.limit} — 부분 결과 보존`;
-  if (s.status === 'interrupted') return '중단 — 대기 콜백 소실';
+  if (s.stop_reason) return `${s.stop_reason.limit} - 부분 결과 보존`;
+  if (s.status === 'interrupted') return '중단 - 대기 콜백 소실';
 
   const parts: string[] = [];
   const cards = cardCount || s.charts.length;

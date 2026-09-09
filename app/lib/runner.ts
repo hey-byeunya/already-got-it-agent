@@ -137,16 +137,16 @@ export function start(opts: StartOptions): void {
           }
           break;
         case 'tool_use':
-          store.appendTrace(runId, { kind: e.kind, label: `도구 호출 — ${e.tool}`, detail: short(e.input) });
+          store.appendTrace(runId, { kind: e.kind, label: `도구 호출 - ${e.tool}`, detail: short(e.input) });
           break;
         case 'tool_result':
           store.appendTrace(runId, { kind: e.kind,
-            label: e.isError ? '도구 결과 — 오류' : '도구 결과', detail: e.preview, isError: e.isError });
+            label: e.isError ? '도구 결과 - 오류' : '도구 결과', detail: e.preview, isError: e.isError });
           break;
         case 'hook_denied':
           store.appendTrace(runId, {
             kind: 'hook_denied',
-            label: `PreToolUse 훅이 막음 (${e.denial.rule}) — ${e.denial.tool}`,
+            label: `PreToolUse 훅이 막음 (${e.denial.rule}) - ${e.denial.tool}`,
             detail: e.denial.reason
               + '\n\n훅은 모든 단계보다 먼저 돌고, bypassPermissions 에서도 deny 가 유효하다 (게이트 ③).',
             isError: true,
@@ -160,13 +160,13 @@ export function start(opts: StartOptions): void {
             s.status = 'stopped';
             s.stop_reason = e.reason;
             s.trace.push({ seq: s.trace.length + 1, at: new Date().toISOString(), kind: 'stopped',
-              label: `종료 조건 — ${e.reason.limit}`,
+              label: `종료 조건 - ${e.reason.limit}`,
               detail: `${e.reason.message}\n관측 ${e.reason.observed} / 허용 ${e.reason.allowed}`,
               isError: true });
           });
           break;
         case 'finished':
-          store.appendTrace(runId, { kind: e.kind, label: `종료 — ${e.status}${e.subtype ? ` (${e.subtype})` : ''}` });
+          store.appendTrace(runId, { kind: e.kind, label: `종료 - ${e.status}${e.subtype ? ` (${e.subtype})` : ''}` });
           break;
       }
     },
@@ -196,26 +196,26 @@ export function start(opts: StartOptions): void {
 function handleGateEvent(runId: string, ev: { kind: string } & Record<string, unknown>): void {
   switch (ev.kind) {
     case 'question_waiting':
-      store.appendTrace(runId, { kind: ev.kind, label: '질문 대기 — 사람의 답을 기다린다',
+      store.appendTrace(runId, { kind: ev.kind, label: '질문 대기 - 사람의 답을 기다린다',
         detail: short(ev.questions) });
       break;
     case 'question_answered':
       store.appendTrace(runId, { kind: ev.kind, label: '답변 받음', detail: short(ev.answers) });
       break;
     case 'question_declined':
-      store.appendTrace(runId, { kind: ev.kind, label: '답하지 않음 — 다음 단계로 넘어가지 않는다', isError: true });
+      store.appendTrace(runId, { kind: ev.kind, label: '답하지 않음 - 다음 단계로 넘어가지 않는다', isError: true });
       break;
     case 'approval_waiting':
-      store.appendTrace(runId, { kind: ev.kind, label: `승인 대기 — ${String(ev.tool)}`,
+      store.appendTrace(runId, { kind: ev.kind, label: `승인 대기 - ${String(ev.tool)}`,
         detail: short(ev.input) });
       break;
     case 'approval_granted':
       store.appendTrace(runId, { kind: ev.kind,
-        label: `승인됨 — ${String(ev.tool)} (대상 ${String(ev.target)})`,
+        label: `승인됨 - ${String(ev.tool)} (대상 ${String(ev.target)})`,
         detail: '승인 시점에 1회용 토큰을 주입해 실행한다. 모델은 토큰을 받지 않는다.' });
       break;
     case 'approval_denied':
-      store.appendTrace(runId, { kind: ev.kind, label: `거절됨 — ${String(ev.tool)}`,
+      store.appendTrace(runId, { kind: ev.kind, label: `거절됨 - ${String(ev.tool)}`,
         detail: String(ev.reason), isError: true });
       break;
   }

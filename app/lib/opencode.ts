@@ -145,9 +145,9 @@ export function startOpencode(opts: OpencodeStartOptions): void {
       } else if (parsed.kind === 'tool') {
         toolCalls += 1;
         store.appendTrace(runId, { kind: 'tool_use',
-          label: `도구 호출 — ${parsed.tool}`, detail: short(parsed.input) });
+          label: `도구 호출 - ${parsed.tool}`, detail: short(parsed.input) });
         store.appendTrace(runId, { kind: 'tool_result',
-          label: parsed.isError ? '도구 결과 — 오류' : '도구 결과',
+          label: parsed.isError ? '도구 결과 - 오류' : '도구 결과',
           detail: short(parsed.output, 2000), isError: parsed.isError });
       } else if (parsed.kind === 'usage') {
         sawFinish = true;
@@ -182,7 +182,7 @@ export function startOpencode(opts: OpencodeStartOptions): void {
           label: '실행 실패',
           detail: (killedBySilence
             ? `${OPENCODE_FIRST_LINE_MS / 1000}초 동안 opencode 가 한 줄도 내놓지 않아 끊었다.`
-              + ' 세션을 열기 전에 멈춰 선 것이다 — 모델·인증을 opencode 쪽에서 먼저 본다'
+              + ' 세션을 열기 전에 멈춰 선 것이다 - 모델·인증을 opencode 쪽에서 먼저 본다'
               + ' (opencode auth list). 무슨 자리에서 섰는지는 opencode 로그에 남는다:'
               + ' ~/.local/share/opencode/log/opencode.log'
             : killedByTimeout

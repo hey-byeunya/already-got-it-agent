@@ -33,7 +33,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     st.pending_question = null;
     st.pending_approval = null;
     st.trace.push({ seq: st.trace.length + 1, at: new Date().toISOString(), kind: 'resume',
-      label: mode === 'resume' ? '재개 — 저장한 세션으로 이어간다' : '재시도 — 처음부터 다시 돌린다',
+      label: mode === 'resume' ? '재개 - 저장한 세션으로 이어간다' : '재시도 - 처음부터 다시 돌린다',
       detail: mode === 'resume' ? `session_id: ${st.session_id}` : undefined });
   });
 

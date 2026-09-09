@@ -39,7 +39,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     });
     store.appendTrace(id, {
       kind: 'export',
-      label: `카드뉴스 내보내기 — ${out.cards}장`,
+      label: `카드뉴스 내보내기 - ${out.cards}장`,
       detail: `${out.zip_path} (${out.zip_bytes.toLocaleString()}B) · ${out.entries.join(', ')}`
         + (out.card_count_note ? `\n${out.card_count_note}` : ''),
     });
@@ -51,7 +51,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     // 실패도 기록에 남긴다. 조용히 사라지면 왜 파일이 없는지 알 수 없다.
     store.appendTrace(id, {
       kind: 'error',
-      label: `카드뉴스 내보내기 실패 — ${String(payload.error)}`,
+      label: `카드뉴스 내보내기 실패 - ${String(payload.error)}`,
       detail: JSON.stringify(payload, null, 2),
       isError: true,
     });

@@ -77,7 +77,7 @@ function linkRefs(text: string, links: RunLinks): React.ReactNode {
     parts.push(
       <Out key={`${m.index}-${m[1]}`} href={hit.url}
         title={links.snapshot
-          ? `픽스처 스냅샷의 ${hit.kind} 참조 — 실제 저장소에 없을 수 있다`
+          ? `픽스처 스냅샷의 ${hit.kind} 참조 - 실제 저장소에 없을 수 있다`
           : `${links.repo} ${hit.kind} #${m[1]}`}>
         {m[0]}
       </Out>,
@@ -216,7 +216,7 @@ function ExportBar({ runId, ex, cardCount, exporting, busy, onExport, onPreview 
         {stale
           ? (
             <span className="note wrn">
-              카드 {cardCount}장 중 {ex.png.length}장만 구워져 있다 — 다시 굽는다
+              카드 {cardCount}장 중 {ex.png.length}장만 구워져 있다 - 다시 굽는다
             </span>
           )
           : <span className="note">카드를 고쳤으면 다시 굽는다</span>}
@@ -233,7 +233,7 @@ function ExportBar({ runId, ex, cardCount, exporting, busy, onExport, onPreview 
         <span className="mut">
           카드 {ex.png.length}장{ex.png.length !== cardCount && cardCount > 0
             ? <span className="wrn"> (카드 {cardCount}장 중)</span> : ''}
-          {' — '}
+          {' - '}
           {/*
             번호를 누르면 모달로 크게 본다. 내려받기는 모달 안의 ⤓ png 가 한다.
             썸네일 격자를 따로 두었더니 카드 목록 바로 위에 같은 그림이 두 번 나와
@@ -520,8 +520,8 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                 <div className="note" style={{ marginTop: 11 }}>
                   unavailable_fields:{' '}
                   {s.axes.unavailable_fields.length === 0
-                    ? <><span className="ok">[]</span> — 네 축 모두 값을 받았다</>
-                    : <><span className="wrn">[{s.axes.unavailable_fields.join(', ')}]</span> — 조회하지 못했다. 0 이 아니다</>}
+                    ? <><span className="ok">[]</span> - 네 축 모두 값을 받았다</>
+                    : <><span className="wrn">[{s.axes.unavailable_fields.join(', ')}]</span> - 조회하지 못했다. 0 이 아니다</>}
                 </div>
                 {/*
                   검색 출처는 카드가 인용하지 않아도 여기 남긴다.
@@ -543,7 +543,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                 )}
               </>
             ) : (
-              <div className="note">아직 도구를 부르지 않았다 — 네 축 값이 없다.</div>
+              <div className="note">아직 도구를 부르지 않았다 - 네 축 값이 없다.</div>
             )}
           </div>
 
@@ -564,7 +564,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                 ? '[ BUDGET ] limits'
                 : known ? '[ USAGE ] cost_is_estimate: true' : '[ USAGE ] usage_known: false'}
               hint={meter === 'budget' && lim
-                ? `반복 ${lim.maxTurns}회 상한은 SDK 가 검사한다 — 이 화면은 실제 턴 수를 관측할 수 없어 게이지로 그리지 않는다`
+                ? `반복 ${lim.maxTurns}회 상한은 SDK 가 검사한다 - 이 화면은 실제 턴 수를 관측할 수 없어 게이지로 그리지 않는다`
                 : undefined}
               right={
                 <span className="row" style={{ gap: 6 }}>
@@ -587,7 +587,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   <Gauge label="wall clock" value={Math.round(elapsed)} max={lim.maxElapsedSeconds} unit="s"
                     hint="엔진이 잰 실행 시간 · 사람을 기다린 시간은 빠져 있다" />
                 </div>
-              ) : <div className="note">상한이 기록되지 않았다 — 이 실행은 상한을 남기기 전 버전이다.</div>
+              ) : <div className="note">상한이 기록되지 않았다 - 이 실행은 상한을 남기기 전 버전이다.</div>
             ) : (
               known && u ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
@@ -631,7 +631,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
           <div className="strip warn" style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
             <span className="wrn">✕</span>
             <div style={{ minWidth: 0 }}>
-              <div><b>요청이 거절됐다</b> — <span className="wrn">{conflict.code}</span> <span className="mut">HTTP 409</span></div>
+              <div><b>요청이 거절됐다</b> - <span className="wrn">{conflict.code}</span> <span className="mut">HTTP 409</span></div>
               <div className="mut">{conflict.message}</div>
             </div>
             <button style={{ marginLeft: 'auto' }} onClick={() => setConflict(null)}>dismiss</button>
@@ -657,7 +657,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   </div>
                 ))}
                 <div className="mut">
-                  승인하면 <span className="ink">1회용 토큰</span>을 주입해 실행한다 — 모델은 토큰을 받지 않는다
+                  승인하면 <span className="ink">1회용 토큰</span>을 주입해 실행한다 - 모델은 토큰을 받지 않는다
                 </div>
                 {/*
                   픽스처 실행은 simulated 로 끝나지만 live 는 실제 저장소를 바꾼다.
@@ -665,7 +665,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                 */}
                 {s.fixture_id === null ? (
                   <div className="bad">
-                    ⚠ live 모드다 — 승인하면{' '}
+                    ⚠ live 모드다 - 승인하면{' '}
                     {s.links.repo
                       ? <Out href={`https://github.com/${s.links.repo}/issues`}>{s.links.repo}</Out>
                       : '실제 저장소'}
@@ -673,7 +673,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   </div>
                 ) : (
                   <div className="mut">
-                    fixture 모드다 — 승인해도 <span className="ink">실제 이슈는 만들어지지 않는다</span>
+                    fixture 모드다 - 승인해도 <span className="ink">실제 이슈는 만들어지지 않는다</span>
                     {' '}(<span className="fnt">simulated</span>)
                   </div>
                 )}
@@ -702,7 +702,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                 <span className="wrn">?</span> <b>질문 대기</b>{' '}
                 <span className="mut">ask_user · {s.pending_question.question_id} v{s.pending_question.version}</span>
               </div>
-              <span className="note">답하기 전에는 다음 단계로 넘어가지 않는다 — 정상 상태다</span>
+              <span className="note">답하기 전에는 다음 단계로 넘어가지 않는다 - 정상 상태다</span>
             </div>
             {s.pending_question.questions.map((q) => (
               <div key={q.question} style={{ marginTop: 12 }}>
@@ -724,7 +724,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
               </div>
             ))}
             <div className="note" style={{ marginTop: 10 }}>
-              같은 question_id + version 은 한 번만 작업을 시작한다 — 두 번 눌러도 제작이 두 번 돌지 않는다
+              같은 question_id + version 은 한 번만 작업을 시작한다 - 두 번 눌러도 제작이 두 번 돌지 않는다
             </div>
           </div>
         )}
@@ -761,7 +761,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   <div className="pane">
                     <SectionHead label="[ STALE QUESTION ] 무효" tone="mut" />
                     <div className="note">
-                      이 질문을 기다리던 콜백이 사라졌다. 지금 답해도 작업은 이어지지 않는다 — 재개하면 에이전트가 다시 묻는다.
+                      이 질문을 기다리던 콜백이 사라졌다. 지금 답해도 작업은 이어지지 않는다 - 재개하면 에이전트가 다시 묻는다.
                     </div>
                     <pre style={{ marginTop: 9, color: 'var(--faint)' }}>
                       {s.pending_question.question_id} v{s.pending_question.version}
@@ -773,7 +773,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   <div className="pane">
                     <SectionHead label="[ STALE APPROVAL ] 무효" tone="mut" />
                     <div className="note">
-                      {s.pending_approval.tool} — 승인 토큰은 <span className="ink">발급되지 않았다</span>. 지금 승인해도 실행되지 않는다.
+                      {s.pending_approval.tool} - 승인 토큰은 <span className="ink">발급되지 않았다</span>. 지금 승인해도 실행되지 않는다.
                     </div>
                     <div style={{ marginTop: 9, fontSize: 11.5, lineHeight: 1.8 }}>
                       <div className="fnt">무엇을 쓰려 했는지</div>
@@ -802,7 +802,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
               <span className="wrn">{s.stop_reason.limit}</span>
             </div>
             <div className="mut">
-              {s.stop_reason.message} — 관측 <span className="ink">{s.stop_reason.observed}</span>
+              {s.stop_reason.message} - 관측 <span className="ink">{s.stop_reason.observed}</span>
               {' '}/ 허용 <span className="ink">{s.stop_reason.allowed}</span>. 지금까지의 결과는 아래에 보존된다.
             </div>
             <div className="mut">
@@ -818,7 +818,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
             <SectionHead label={`[ DECIDED BY HUMAN ] ${s.answered.length + s.decisions.length}`} />
             {s.answered.length + s.decisions.length === 0 ? (
               <div className="note">
-                아직 없다 — 답과 승인이 여기 쌓인다. 같은 질문을 다시 묻지 않기 위한 기록이다.
+                아직 없다 - 답과 승인이 여기 쌓인다. 같은 질문을 다시 묻지 않기 위한 기록이다.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
@@ -838,7 +838,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                       style={{ padding: '7px 0', borderBottom: '1px solid var(--line-faint)' }}>
                       <span className="mut">{d.tool} <span className="fnt">{d.approval_id}</span></span>
                       <span className={d.approved ? 'ok' : 'bad'}>
-                        {d.approved ? '승인 — 토큰 주입해 실행' : `거절 — ${d.reason ?? '사람이 승인하지 않았다'}`}
+                        {d.approved ? '승인 - 토큰 주입해 실행' : `거절 - ${d.reason ?? '사람이 승인하지 않았다'}`}
                         {made && (made.url
                           ? <> · <Out href={made.url}>#{made.number} ↗</Out></>
                           : <> · <span className="wrn" title="fixture 모드다. 실제 이슈는 만들어지지 않았다">
@@ -886,7 +886,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   [ TAIL -F ] {s.trace.length} <span className="mut">· 최신순</span>
                 </span>
                 <span className={dead ? 'mut' : 'ok'}>
-                  {dead ? '○ poll 정지 — 끝난 실행은 더 두드리지 않는다' : `● poll ${POLL_MS / 1000}s`}
+                  {dead ? '○ poll 정지 - 끝난 실행은 더 두드리지 않는다' : `● poll ${POLL_MS / 1000}s`}
                 </span>
               </div>
               <div className="row" style={{ gap: 5, marginBottom: 12 }}>
