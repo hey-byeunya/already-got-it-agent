@@ -22,6 +22,7 @@ type State = {
   final_text?: string;
   charts: { card_no: number; svg_path: string }[];
   live: boolean;
+  credential_source?: 'api_key' | 'auth_token' | 'stored_login';
 };
 
 const TERMINAL = new Set(['done', 'stopped', 'failed', 'interrupted']);
@@ -222,6 +223,13 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
               <p className="note">
                 비용은 <strong>클라이언트 측 추정값</strong>이다. SDK 가 번들된 단가표로 로컬 계산하며
                 실제 청구액과 다를 수 있다. 참고와 종료 조건 판정에만 쓴다.
+              </p>
+              <p className="note">
+                {s.credential_source === 'api_key'
+                  ? '이 실행은 ANTHROPIC_API_KEY 로 돌았다 — API 사용량 크레딧에서 차감된다.'
+                  : s.credential_source === 'stored_login'
+                    ? '이 실행은 저장된 로그인(구독)으로 돌았다 — 위 금액은 토큰 추정치이며 API 크레딧에서 차감되지 않는다.'
+                    : '이 실행의 자격증명 출처가 기록되지 않았다.'}
               </p>
             </>
           )}

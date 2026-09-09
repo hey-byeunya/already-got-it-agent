@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { readdirSync, existsSync } from 'node:fs';
 import { FIXTURES_DIR } from '@/lib/paths';
 import * as store from '@/lib/store';
-import { hasEngineKey, start } from '@/lib/runner';
+import { credentialSource, start } from '@/lib/runner';
 
 export const runtime = 'nodejs';
 
@@ -10,16 +10,12 @@ export function GET() {
   const fixtures = existsSync(FIXTURES_DIR)
     ? readdirSync(FIXTURES_DIR).filter((f) => f.endsWith('.json')).map((f) => f.replace('.json', '')).sort()
     : [];
-  return NextResponse.json({ runs: store.listRuns(), fixtures, engine_key: hasEngineKey() });
+  return NextResponse.json({
+    runs: store.listRuns(), fixtures, credential_source: credentialSource(),
+  });
 }
 
 export async function POST(req: Request) {
-  if (!hasEngineKey()) {
-    return NextResponse.json(
-      { error: 'engine_key_missing', message: '.env.local 에 ANTHROPIC_API_KEY 를 넣어야 실행할 수 있다' },
-      { status: 400 },
-    );
-  }
   const body = await req.json().catch(() => ({})) as { fixture_id?: string; goal?: string; focus?: string };
   const fixtureId = body.fixture_id ?? null;
   const runId = `web-${Date.now().toString(36)}`;

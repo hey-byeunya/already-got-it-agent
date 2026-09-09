@@ -28,9 +28,22 @@ function loadEnvLocal(): void {
   }
 }
 
-export function hasEngineKey(): boolean {
+export type CredentialSource = 'api_key' | 'auth_token' | 'stored_login';
+
+/**
+ * 어느 자격증명으로 돌게 될지 알린다.
+ *
+ * ⚠️ 환경변수 키가 없다고 자격증명이 없다는 뜻은 아니다. SDK 는
+ * ANTHROPIC_API_KEY → ANTHROPIC_AUTH_TOKEN → **저장된 로그인(구독)** 순으로 찾는다.
+ * 그래서 키가 없을 때 실행을 막지 않는다 — 막으면 구독으로 도는 경로를 코드가 닫아 버린다.
+ *
+ * 어느 쪽인지는 비용이 어느 지갑에서 빠지는지를 결정하므로 화면에 표시한다.
+ */
+export function credentialSource(): CredentialSource {
   loadEnvLocal();
-  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+  if (process.env.ANTHROPIC_API_KEY) return 'api_key';
+  if (process.env.ANTHROPIC_AUTH_TOKEN) return 'auth_token';
+  return 'stored_login';
 }
 
 const short = (v: unknown, n = 2000) => {
@@ -84,7 +97,8 @@ export function start(opts: StartOptions): void {
   process.env.OPS_RUNS_DIR = RUNS_DIR;
 
   store.markLive(runId, {});
-  store.update(runId, (s) => { s.status = 'planning'; });
+  const cred = credentialSource();
+  store.update(runId, (s) => { s.status = 'planning'; s.credential_source = cred; });
 
   void runBriefing({
     runId,

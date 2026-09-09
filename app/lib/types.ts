@@ -67,4 +67,6 @@ export type RunState = {
   charts: { card_no: number; svg_path: string }[];
   /** 이 실행을 이 서버 프로세스가 돌리고 있는가. 재시작 감지에 쓴다. */
   live: boolean;
+  /** 어느 자격증명으로 돌았는가. 비용이 어느 지갑에서 빠지는지가 달라진다. */
+  credential_source?: 'api_key' | 'auth_token' | 'stored_login';
 };

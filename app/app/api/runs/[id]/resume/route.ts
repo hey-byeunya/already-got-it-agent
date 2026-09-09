@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as store from '@/lib/store';
-import { hasEngineKey, start } from '@/lib/runner';
+import { start } from '@/lib/runner';
 
 export const runtime = 'nodejs';
 
@@ -17,9 +17,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const s = store.readState(id);
   if (!s) return NextResponse.json({ error: 'run_not_found' }, { status: 404 });
-  if (!hasEngineKey()) {
-    return NextResponse.json({ error: 'engine_key_missing' }, { status: 400 });
-  }
   if (s.live) {
     return NextResponse.json({ error: 'already_live', message: '이 실행은 지금 돌고 있다' }, { status: 409 });
   }

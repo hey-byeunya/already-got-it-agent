@@ -6,7 +6,7 @@ import Link from 'next/link';
 type Listing = {
   runs: { run_id: string; status: string; created_at: string; fixture_id: string | null }[];
   fixtures: string[];
-  engine_key: boolean;
+  credential_source: 'api_key' | 'auth_token' | 'stored_login';
 };
 
 export default function Home() {
@@ -43,12 +43,16 @@ export default function Home() {
         시스템 상태 · 사용자 지표 · 개발 활동 · IT 트렌드 네 축을 읽어 카드뉴스 한 편으로 넘긴다.
       </p>
 
-      {data && !data.engine_key && (
-        <div className="panel" style={{ borderColor: 'var(--danger)' }}>
-          <strong>실행 엔진 키가 없다.</strong>
+      {data && (
+        <div className="panel">
+          <strong>자격증명</strong>
           <p className="note">
-            저장소 루트의 <code>.env.local</code> 에 <code>ANTHROPIC_API_KEY</code> 를 넣어야 실행할 수 있다.
-            형식은 <code>.env.local.example</code> 참고.
+            {data.credential_source === 'api_key'
+              ? 'ANTHROPIC_API_KEY — 비용이 API 사용량 크레딧에서 빠진다.'
+              : data.credential_source === 'auth_token'
+                ? 'ANTHROPIC_AUTH_TOKEN 을 쓴다.'
+                : '환경변수에 키가 없다 — SDK 가 저장된 로그인(구독)으로 시도한다.'}
+            {' '}환경변수 키가 없다고 자격증명이 없다는 뜻은 아니므로 실행을 막지 않는다.
           </p>
         </div>
       )}
@@ -72,7 +76,7 @@ export default function Home() {
           픽스처 모드다 — 외부 API 를 부르지 않고, 쓰기 도구도 실제 GitHub 을 바꾸지 않는다.
         </p>
         <div className="row" style={{ marginTop: 10 }}>
-          <button className="primary" onClick={startRun} disabled={starting || !data?.engine_key}>
+          <button className="primary" onClick={startRun} disabled={starting}>
             {starting ? '시작하는 중…' : '브리핑 시작'}
           </button>
           {error && <span style={{ color: 'var(--danger)' }}>{error}</span>}

@@ -46,13 +46,16 @@ async function main(): Promise<void> {
   const answersPath = arg('answers');
   const approveOnly = arg('approve-only')?.split(',').map((s) => s.trim()).filter(Boolean);
 
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
-    console.error(
-      '\nANTHROPIC_API_KEY 가 없다.\n'
-      + `  ${resolve(PROJECT_ROOT, '.env.local')} 에 키를 넣거나 환경변수로 내보낸다.\n`
-      + '  형식은 .env.local.example 을 참고한다.\n',
-    );
-    process.exit(2);
+  // 환경변수 키가 없다고 자격증명이 없다는 뜻은 아니다 — SDK 는
+  // ANTHROPIC_API_KEY → ANTHROPIC_AUTH_TOKEN → 저장된 구독 로그인 순으로 찾는다.
+  // 그래서 여기서 막지 않고, 어느 경로로 갈지만 알린다.
+  // (처음에는 여기서 exit 했는데, 그러면 구독으로 도는 경로를 코드가 닫아 버린다.)
+  if (process.env.ANTHROPIC_API_KEY) {
+    console.log('자격증명: ANTHROPIC_API_KEY (API 사용량 크레딧에서 빠진다)');
+  } else if (process.env.ANTHROPIC_AUTH_TOKEN) {
+    console.log('자격증명: ANTHROPIC_AUTH_TOKEN');
+  } else {
+    console.log('자격증명: 환경변수에 없음 — SDK 가 저장된 로그인(구독)으로 시도한다');
   }
 
   const runsDir = resolve(PROJECT_ROOT, 'runs');
@@ -153,7 +156,11 @@ async function main(): Promise<void> {
   if (u.usage_known) {
     console.log(`토큰 입력 ${u.input_tokens} (캐시읽기 ${u.cache_read_input_tokens})`
       + ` · 출력 ${u.output_tokens}`);
-    console.log(`비용 $${u.total_cost_usd.toFixed(4)} — 클라이언트 측 추정값이며 실제 청구액이 아니다`);
+    const onApiKey = Boolean(process.env.ANTHROPIC_API_KEY);
+    console.log(
+      `비용 $${u.total_cost_usd.toFixed(4)} — 클라이언트 측 추정값이며 실제 청구액이 아니다`
+      + (onApiKey ? ' (API 사용량 크레딧에서 차감)' : ' (구독 로그인 실행 — API 크레딧에서 차감되지 않는다)'),
+    );
   } else {
     console.log(`토큰·비용: 확인 못 함 — ${u.unknown_reason}`);
   }
