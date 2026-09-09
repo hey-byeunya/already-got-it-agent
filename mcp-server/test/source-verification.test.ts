@@ -97,9 +97,9 @@ test('render_chart 근거 대조', async (t) => {
     assert.deepEqual(chart.resolveField(METRICS, 'series[].없는필드'), []);
   });
 
-  t.test('SVG 는 파일이 실제로 열려야 완료다 (opened_ok 원칙)', async () => {
-    await withTempRuns(async (dir) => {
-        const svg = chart.renderBarChart({ title: '가입', data: [{ label: 'a', value: 3 }] });
+  t.test('SVG 는 파일이 실제로 열려야 완료다 (opened_ok 원칙)', () => {
+    withTempRuns((dir) => {
+      const svg = chart.renderBarChart({ title: '가입', data: [{ label: 'a', value: 3 }] });
       const res = chart.writeSvg(`${dir}/c.svg`, svg);
       assert.equal(res.rendered_ok, true);
       assert.ok(res.bytes > 0);

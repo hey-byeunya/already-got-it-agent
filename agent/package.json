@@ -1,0 +1,20 @@
+{
+  "name": "already-got-it-ops-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "운영 브리핑 에이전트의 루프 래퍼 — Claude Agent SDK 호출부를 화면에서 분리한다",
+  "scripts": {
+    "build": "tsc",
+    "check": "node --test \"dist/test/*.test.js\"",
+    "brief": "node dist/src/run.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "*",
+    "already-got-it-ops-mcp": "file:../mcp-server"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

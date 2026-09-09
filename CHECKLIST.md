@@ -73,16 +73,22 @@
 
 ## 4. 루프와 승인 — 채점 2·3번
 
-- [ ] Agent SDK `query()` 래퍼, 엔진 호출부 분리
-- [ ] MCP 서버를 `mcpServers`로 연결
-- [ ] `disallowedTools` — 내장 도구 차단 (모델 목록에서 사라지는지 확인)
-- [ ] `allowedTools` — **읽기 도구 5개만**. 쓰기 2개는 넣지 않는다 (D14)
-- [ ] `permissionMode: 'default'` (`dontAsk` 아님)
-- [ ] `canUseTool` — `AskUserQuestion` 가로채기 + 쓰기 승인 + `approval_token` 발급
-- [ ] `PreToolUse` 훅 — 승인 기록 없는 쓰기 거부
-- [ ] `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` 경고 감시 → **뜨면 실패 처리**
-- [ ] 종료 조건 — `maxTurns` · `maxBudgetUsd` + 내 코드 4종
-- [ ] 승인 없이 쓰기 도구가 실행되지 않는지 **직접 시도해서** 확인
+**구현 완료 (CLI 로 확인 가능).** `cd agent && npm run check` — 검사 30개.
+
+- [x] Agent SDK `query()` 래퍼 — `agent/src/engine.ts` 한 곳에서만 SDK 를 부른다
+- [x] MCP 서버를 `mcpServers` 로 연결 (stdio)
+- [x] `disallowedTools` — 내장 도구 10종 차단
+- [x] `allowedTools` — **읽기 도구 5개만**. 쓰기 2개는 넣지 않는다 (D14)
+- [x] `permissionMode: 'default'` (`dontAsk` 아님)
+- [x] `canUseTool` — `AskUserQuestion` 가로채기 + 쓰기 승인 + **승인 시점에 토큰 주입**
+- [x] `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` 경고 감시 → 뜨면 실패 처리
+- [x] 종료 조건 — `maxTurns` · `maxBudgetUsd` (SDK) + 도구호출·토큰·시간·연속 (내 코드)
+- [x] 대기 시간을 실행 시간에서 제외
+- [x] 토큰·비용 집계 — 함정 4개 + `usage_known`
+- [x] CLI 실행기 `agent/src/run.js` — 화면 없이 브리핑 한 편
+- [ ] **실제 모델로 브리핑 한 편 실행** ← 키 필요
+- [ ] `PreToolUse` 훅 (게이트 ③) — 지금은 ①② 두 겹. 훅은 웹앱에서 추가
+- [ ] 승인 없이 쓰기 도구가 실행되지 않는지 실제 실행에서 확인 ← 캡처
 
 ## 5. 화면과 재개 — 채점 3·4번
 
