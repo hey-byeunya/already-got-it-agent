@@ -357,3 +357,5 @@ img.chart { display: block; width: 100%; background: #fff; }
 
 /* 오른쪽 끝 칸에서는 왼쪽으로 펴야 창을 넘지 않는다. */
 [data-tip][data-tip-align='right']::after { left: auto; right: 0; }
+/* 화면 맨 위에 붙은 것은 위로 띄우면 잘린다 — 아래로 내린다. */
+[data-tip][data-tip-below]::after { bottom: auto; top: calc(100% + 6px); }

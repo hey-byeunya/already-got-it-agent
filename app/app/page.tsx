@@ -476,20 +476,23 @@ function ModeBadge({ data }: { data: Listing | null }) {
   const live = data.mode === 'live';
   return (
     <span className="row" style={{ gap: 8, fontSize: 11 }}>
-      <span className="badge" style={{ color: live ? 'var(--warn)' : 'var(--accent)' }}>
+      {/* 설명은 툴팁으로 내린다 — 머리줄은 값만 남긴다. 뜻은 계기 게이지와 같은 규칙이다. */}
+      <span className="badge" style={{ color: live ? 'var(--warn)' : 'var(--accent)' }}
+        data-tip={live ? '실제 API 를 부른다.' : '외부 API 를 부르지 않는다 · 스냅샷을 읽는다.'}
+        data-tip-below="" tabIndex={0}>
         <i />{live ? 'LIVE' : 'FIXTURE'}
       </span>
-      <span className="mut">
-        {live
-          ? <>
-              실제 API 를 부른다 · 대상 <span className="ink">{data.allowed_repos.join(', ')}</span>
-              {' · 쓰기 '}
-              {data.live_writes
-                ? <span className="bad">켜짐 — 승인하면 진짜 이슈가 만들어진다</span>
-                : <span className="ok">꺼짐</span>}
-            </>
-          : '외부 API 를 부르지 않는다 — 스냅샷을 읽는다'}
-      </span>
+      {live && (
+        <span className="mut">
+          <span className="ink">{data.allowed_repos.join(', ')}</span>
+          {' · write '}
+          {data.live_writes
+            ? <span className="bad" data-tip="승인하면 진짜 이슈가 만들어진다."
+                data-tip-below="" data-tip-align="right" tabIndex={0}>on</span>
+            : <span className="ok" data-tip="승인해도 이슈를 만들지 않는다."
+                data-tip-below="" data-tip-align="right" tabIndex={0}>off</span>}
+        </span>
+      )}
       <span className="fnt">OPS_MODE</span>
     </span>
   );
