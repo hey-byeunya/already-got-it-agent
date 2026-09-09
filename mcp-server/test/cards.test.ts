@@ -8,8 +8,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { withTempRunsAsync } from './helpers.js';
 import { join } from 'node:path';
 import {
   CARD_H, CARD_W, composeCard, rasterize, readCardSpecs, sourcesMarkdown, textWidth, wrap, writeZip, type CardSpec,
@@ -248,6 +249,39 @@ test('내보내기', async (t) => {
       execFileSync('unzip', ['-q', out, '-d', join(dir, 'x')]);
       assert.equal(readFileSync(join(dir, 'x', 'SOURCES.md'), 'utf8'), content);
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  // 관측한 문제: 「한 편은 5~8장」이 프롬프트에만 있고 도구가 검사하지 않아
+  // 설명이 아무것도 제한하지 못했다.
+  t.test('9장 이상은 too_many_cards 로 거절한다', async () => {
+    const { registerAllTools } = await import('../src/tools.js');
+    const tools = new Map<string, (a: unknown) => Promise<{ isError?: boolean; content: { text: string }[] }>>();
+    registerAllTools({
+      registerTool: (name: string, _cfg: unknown, fn: unknown) => {
+        tools.set(name, fn as (a: unknown) => Promise<{ isError?: boolean; content: { text: string }[] }>);
+      },
+    } as never);
+
+    await withTempRunsAsync(async (runsDir) => {
+      const runId = 'many';
+      const compose = tools.get('compose_card')!;
+      // 전부 cover 로 만든다. cover 는 근거 대조를 하지 않으므로
+      // 이 검사가 «장수 상한» 하나만 보게 된다 — 근거 규칙이 바뀌어도 안 깨진다.
+      for (let n = 1; n <= 9; n += 1) {
+        const r = await compose({
+          run_id: runId, fixture_id: 'f1-normal', card_no: n, kind: 'cover',
+          title: `카드 ${n}`, body: ['본문'], sources: ['픽스처 f1-normal'], accent: 'accent',
+        });
+        assert.ok(!r.isError, `카드 ${n} 을 만들지 못했다: ${r.content[0]!.text}`);
+      }
+      const out = await tools.get('export_cardnews')!({ run_id: runId, fixture_id: 'f1-normal' });
+      const body = JSON.parse(out.content[0]!.text) as { error?: string; count?: number };
+      assert.equal(out.isError, true, '9장인데 통과했다');
+      assert.equal(body.error, 'too_many_cards');
+      assert.equal(body.count, 9);
+      // 거절했으면 ZIP 을 남기지 않아야 한다.
+      assert.equal(existsSync(join(runsDir, runId, `cardnews-${runId}.zip`)), false);
+    });
   });
 
   t.test('출처 기록에 카드마다 근거가 남는다', () => {

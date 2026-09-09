@@ -22,6 +22,10 @@ import { userMetrics } from './live/supabase.js';
 import { devActivity, createIssue, closeIssue } from './live/github.js';
 import { search as searchAdvisories } from './live/advisories.js';
 
+/** 카드뉴스 한 편의 길이 (PRD 1절). 프롬프트와 이 상수가 같은 값을 봐야 한다. */
+const MIN_CARDS = 5;
+const MAX_CARDS = 8;
+
 const period = {
   since: z.string().describe('기간 시작 (ISO 8601)'),
   until: z.string().describe('기간 끝 (ISO 8601)'),
@@ -288,7 +292,8 @@ export function registerAllTools(server: McpServer): void {
   defineTool(server, {
     name: 'export_cardnews',
     description:
-      '만든 카드들을 PNG 로 굽고 ZIP 한 개로 묶는다. 출처 기록(SOURCES.md)도 함께 넣는다. '
+      `만든 카드들을 PNG 로 굽고 ZIP 한 개로 묶는다. 출처 기록(SOURCES.md)도 함께 넣는다. `
+      + `한 편은 ${MIN_CARDS}~${MAX_CARDS}장이다 — ${MAX_CARDS}장을 넘으면 too_many_cards 로 거절한다. `
       + '카드를 새로 만들지 않는다 — compose_card 로 만든 것만 내보낸다. '
       + '변환이 끝났다는 것과 그림이 생겼다는 것은 다르므로 PNG 머리를 직접 읽어 크기를 대조하고, '
       + 'opened_ok 가 false 인 카드가 있으면 export_incomplete 로 거절한다.',
@@ -311,6 +316,22 @@ export function registerAllTools(server: McpServer): void {
           '카드 번호가 1부터 이어지지 않는다. 빠진 번호를 만들거나 번호를 다시 매긴다',
           { found: numbers });
       }
+
+      // 한 편은 5~8장이다 (PRD 1절). 프롬프트에만 적어 두었더니 도구가 검사하지 않아
+      // 설명이 아무것도 제한하지 못했다 — 이 파일 머리의 규칙과 어긋나 있었다.
+      //
+      // **위쪽만 막는다.** 너무 긴 카드뉴스는 결함이지만, 너무 짧은 것은 결함이 아닐 수 있다 —
+      // 프롬프트가 "자료가 부족하면 카드 수를 채우려 하지 말라"고 지시하기 때문이다.
+      // 아래쪽까지 막으면 그 지시와 충돌해 모델이 억지로 카드를 만들게 된다.
+      if (specs.length > MAX_CARDS) {
+        throw new ToolError('too_many_cards',
+          `한 편은 ${MAX_CARDS}장까지다. 덜 중요한 카드를 합치거나 뺀 뒤 다시 내보낸다`,
+          { count: specs.length, allowed: MAX_CARDS });
+      }
+      const short = specs.length < MIN_CARDS
+        ? `카드가 ${specs.length}장이다 (보통 ${MIN_CARDS}~${MAX_CARDS}장).`
+          + ' 자료가 부족해서라면 그대로 두고, 무엇이 부족한지 브리핑에 적는다'
+        : null;
 
       const rendered = specs.map((c) => {
         const nn = String(c.card_no).padStart(2, '0');
@@ -340,6 +361,7 @@ export function registerAllTools(server: McpServer): void {
       return {
         zip_path: zipName, zip_bytes: zipBytes,
         cards: rendered.length,
+        ...(short ? { card_count_note: short } : {}),
         entries: [...rendered.map((r) => `cards/${r.file}`), 'SOURCES.md'],
         png: rendered,
         sources_path: 'SOURCES.md',

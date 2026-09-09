@@ -28,6 +28,31 @@ Day 39 「사용자와 함께 만드는 카드뉴스 에이전트」 6강의 확
 핵심 제약 하나 — **근거 없는 수치를 카드에 넣지 않는다.** 운영 판단의 근거가 되는 문서이므로
 환각은 곧 기능 실패다. `EVAL.md`에서 환각률을 첫 번째 지표로 잰다.
 
+## 화면과 결과물
+
+<table>
+<tr>
+<td width="62%" valign="top">
+
+<img src="evidence/screens/ui-01-home.png" alt="시작 화면 — 지난 실행 목록과 새 브리핑">
+
+**시작 화면.** 지난 실행을 상태·결과 한 줄·비용으로 늘어놓는다.
+비용을 모르는 실행은 `0` 이 아니라 **「확인 못 함」** 이다.
+
+</td>
+<td width="38%" valign="top">
+
+<img src="evidence/screens/ui-08-card-sample.png" alt="카드뉴스 한 장 — 배포 실패 카드">
+
+**카드 한 장** (1080×1350).
+차트는 근거 대조를 통과한 값만 그린다.
+
+</td>
+</tr>
+</table>
+
+실행 화면 전체와 카드뉴스 7장은 [`evidence/screens/`](./evidence/screens/) 에 있다.
+
 ## 연결한 도구
 
 도구 9개는 `mcp-server/`에 **독립 stdio MCP 서버**로 한 번만 구현하고, 앱은 Agent SDK로,

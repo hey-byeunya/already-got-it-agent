@@ -19,6 +19,7 @@
 | `ui-05-empty-run.png` | `web-mtuaihxp` | 도구를 부르기 전에 실패한 실행. 네 축·카드·상한이 전부 없어도 **깨지지 않고 «없다»고 말한다** | 4 |
 | `ui-06-cardnews-screen.png` | `web-mtucmfut` | **카드뉴스 제작 화면** — `[ CARDS ] 7` 전체. 로그 열이 접히는 1000px 폭이라 카드가 한 장씩 다 보인다. 카드마다 심각도 딱지·근거 줄이 붙어 있다 | 결과물 |
 | `ui-07-cardnews-output.png` | `web-mtucmfut` | **내보낸 결과물** — `cardnews-web-mtucmfut.zip` 안의 PNG 7장(1080×1350)을 펼쳐 놓은 대지. 파일명·심각도·제목을 함께 적었다 | 결과물 |
+| `ui-08-card-sample.png` | `web-mtucmfut` | 카드 낱장 원본 (1080×1350). `README.md` 가 이 파일을 보여준다 | 결과물 |
 
 `ui-02` 한 장 안에 승인·거절·질문 답변이 모두 들어 있다 — 실행 하나를 끝까지 돌려 찍었기 때문이다.
 살아 있는 승인·질문 게이트(누를 수 있는 상태)는 그 실행 도중에 확인했고, 결과가 `[ DECIDED BY HUMAN ]` 에 남았다.
@@ -46,6 +47,17 @@ runs/web-mtucmfut/cardnews-web-mtucmfut.zip   466,772B
 $ unzip -t runs/web-mtucmfut/cardnews-web-mtucmfut.zip
 No errors detected in compressed data
 ```
+
+**화면에서 바로 내려받는다** (PRD 1절의 「함께 내려받는다」). `ui-06` 의 `[ CARDS ]` 위에
+`⤓ 내려받기` 줄이 있고, 카드마다 `⤓ png` 가 붙는다.
+
+```
+GET /api/runs/{id}/export/zip       → cardnews-{id}.zip
+GET /api/runs/{id}/export/sources   → SOURCES.md
+GET /api/runs/{id}/export/NN.png    → 카드 낱장
+```
+
+경로를 조립하지 않고 이 세 형태만 받는다 — `../` 나 널바이트를 섞은 요청은 400·404 로 막힌다.
 
 ZIP 과 PNG 원본은 저장소에 넣지 않는다 (`.gitignore` 의 `evidence/cardnews/`) —
 용량이 크고, **캡처와 `SOURCES.md` 로 충분히 증명된다.** 다시 만들려면 아래 「다시 찍는 법」 대로 실행한다.

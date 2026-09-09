@@ -8,10 +8,10 @@
  * 실행에 따라 이 파일들이 **없을 수 있다** (도구를 부르기 전에 실패한 실행 등).
  * 그때는 조용히 빈 값을 돌려준다 — 화면이 깨지는 것보다 «아직 없다»가 낫다.
  */
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { RUNS_DIR } from './paths';
-import type { AxesView, AxisTile, CardView, RunLinks, Step, TraceEvent } from './types';
+import type { AxesView, AxisTile, CardView, ExportView, RunLinks, Step, TraceEvent } from './types';
 
 const EMPTY_AXES: AxesView = {
   tiles: [
@@ -328,4 +328,29 @@ export function readLinks(runId: string, fixtureId: string | null): RunLinks {
   } catch { /* 기록이 깨졌으면 링크 없이 간다 */ }
 
   return out;
+}
+
+
+/** 내보낸 파일이 실제로 있는지 본다. 있다고 적힌 것과 있는 것은 다르다 (opened_ok 원칙). */
+export function readExports(runId: string): ExportView {
+  const dir = join(RUNS_DIR, runId);
+  const zipName = `cardnews-${runId}.zip`;
+  const zipPath = join(dir, zipName);
+
+  let zip: ExportView['zip'] = null;
+  try {
+    if (existsSync(zipPath)) zip = { name: zipName, bytes: statSync(zipPath).size };
+  } catch { /* 읽을 수 없으면 없는 것으로 본다 */ }
+
+  const png: ExportView['png'] = [];
+  try {
+    const pngDir = join(dir, 'png');
+    if (existsSync(pngDir)) {
+      for (const f of readdirSync(pngDir).filter((x) => /^\d+\.png$/.test(x)).sort()) {
+        png.push({ card_no: Number(f.replace('.png', '')), bytes: statSync(join(pngDir, f)).size });
+      }
+    }
+  } catch { /* 같음 */ }
+
+  return { zip, sources: existsSync(join(dir, 'SOURCES.md')), png };
 }

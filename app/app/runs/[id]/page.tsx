@@ -16,7 +16,7 @@ import Link from 'next/link';
 import {
   Bar, Cursor, Gauge, Lights, SectionHead, StatusBadge, TERMINAL_STATUSES, clock,
 } from '@/components/term';
-import type { CardView, RunDetail, RunLinks, Step, TraceEvent } from '@/lib/types';
+import type { CardView, ExportView, RunDetail, RunLinks, Step, TraceEvent } from '@/lib/types';
 
 type Conflict = { code: string; message: string };
 
@@ -96,6 +96,55 @@ function webSourcesFor(card: CardView, links: RunLinks): RunLinks['web'] {
   // 출처 문장에 제목이 적혀 있으면 그것만, 없으면 이 실행의 검색 출처 전부.
   const named = links.web.filter((w) => card.sources.some((x) => x.includes(w.title)));
   return named.length ? named : links.web;
+}
+
+
+const kb = (b: number) => `${Math.round(b / 1024).toLocaleString()}KB`;
+
+/**
+ * 내보낸 결과물 내려받기 — PRD 1절 「카드별 PNG와 전체 ZIP, 그리고 근거 기록을 함께 내려받는다」.
+ *
+ * 디스크에 **실제로 있는 것만** 보여준다. 없으면 왜 없는지 적는다 —
+ * 눌리지 않는 버튼을 두지 않는다는 이 화면의 규칙과 같다.
+ */
+function ExportBar({ runId, ex, cardCount }: {
+  runId: string; ex: ExportView; cardCount: number;
+}) {
+  const base = `/api/runs/${runId}/export`;
+  if (!ex.zip && !ex.sources && ex.png.length === 0) {
+    return (
+      <div className="note">
+        아직 내보내지 않았다 — <span className="ink">export_cardnews</span> 가 돌면
+        ZIP · 카드 PNG · 근거 기록을 여기서 내려받는다.
+      </div>
+    );
+  }
+  return (
+    <div className="note" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'baseline' }}>
+      <span className="ok">⤓ 내려받기</span>
+      {ex.zip && (
+        <a href={`${base}/zip`} download>
+          {ex.zip.name} <span className="fnt">{kb(ex.zip.bytes)}</span>
+        </a>
+      )}
+      {ex.sources && <a href={`${base}/sources`} download>SOURCES.md <span className="fnt">근거 기록</span></a>}
+      {ex.png.length > 0 && (
+        <span className="mut">
+          카드 PNG {ex.png.length}장{ex.png.length !== cardCount && cardCount > 0
+            ? <span className="wrn"> (카드 {cardCount}장 중)</span> : ''}
+          {' — '}
+          {ex.png.map((p, i) => (
+            <span key={p.card_no}>
+              {i > 0 && <span className="fnt"> · </span>}
+              <a href={`${base}/${String(p.card_no).padStart(2, '0')}.png`} download>
+                {String(p.card_no).padStart(2, '0')}
+              </a>
+            </span>
+          ))}
+        </span>
+      )}
+    </div>
+  );
 }
 
 const SEVERITY: Record<CardView['severity'], { line: string; bg: string; ink: string }> = {
@@ -648,7 +697,8 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
         <div style={{ display: 'grid', gridTemplateColumns: bottomCols }}>
           <div style={{ padding: 18, minWidth: 0 }}>
             {view === 'card' ? (
-              <CardsPane cards={s.cards} charts={s.charts} runId={s.run_id} links={s.links} />
+              <CardsPane cards={s.cards} charts={s.charts} runId={s.run_id}
+                links={s.links} exports={s.exports} />
             ) : (
               <div style={{ border: '1px solid var(--line)', background: 'var(--raised)' }}>
                 <div className="spread" style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', fontSize: 11.5 }}>
@@ -731,9 +781,9 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
 }
 
 /** 카드가 있으면 카드를, 없으면 차트만이라도 보여준다. 둘 다 없으면 왜 없는지 적는다. */
-function CardsPane({ cards, charts, runId, links }: {
+function CardsPane({ cards, charts, runId, links, exports: ex }: {
   cards: CardView[]; charts: { card_no: number; svg_path: string }[];
-  runId: string; links: RunLinks;
+  runId: string; links: RunLinks; exports: ExportView;
 }) {
   const chartOf = (p?: string) => charts.find((c) => c.svg_path === p);
 
@@ -742,6 +792,9 @@ function CardsPane({ cards, charts, runId, links }: {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <SectionHead label={`[ CARDS ] ${charts.length}`} tone="mut"
           right={<span className="note">근거 없는 수치는 카드에 오르지 않는다</span>} />
+        <div style={{ padding: '10px 12px', border: '1px solid var(--line)', background: 'var(--raised)' }}>
+          <ExportBar runId={runId} ex={ex} cardCount={0} />
+        </div>
         {charts.length === 0 ? (
           <div className="hatch" style={{ padding: '26px 20px', textAlign: 'center' }}>
             <div className="note" style={{ fontSize: 12.5, lineHeight: 1.9 }}>
@@ -767,12 +820,22 @@ function CardsPane({ cards, charts, runId, links }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <SectionHead label={`[ CARDS ] ${cards.length}`}
         right={<span className="note">근거 없는 수치는 카드에 오르지 않는다</span>} />
+      {/* PRD 1절의 세 갈래와 화면의 딱지가 어떻게 대응하는지 밝힌다. */}
+      <div className="note" style={{ marginTop: -4 }}>
+        <span style={{ color: SEVERITY.FIX_NOW.ink }}>FIX_NOW</span> 지금 손봐야 할 것{' · '}
+        <span style={{ color: SEVERITY.WATCH.ink }}>WATCH</span> 지켜볼 것{' · '}
+        <span className="mut">FYI</span> 알아둘 것
+        <span className="fnt">{' · METRICS 는 차트가 붙은 지표 카드다'}</span>
+      </div>
       {links.snapshot && (links.issues.length > 0 || links.pulls.length > 0) && (
         <div className="note" style={{ marginTop: -4 }}>
           이슈·PR 링크는 <span className="wrn">픽스처 스냅샷</span>의 참조다 —
           실제 저장소에는 없을 수 있다.
         </div>
       )}
+      <div style={{ padding: '10px 12px', border: '1px solid var(--line)', background: 'var(--raised)' }}>
+        <ExportBar runId={runId} ex={ex} cardCount={cards.length} />
+      </div>
       {cards.map((c) => {
         const sev = SEVERITY[c.severity];
         const chart = chartOf(c.chart_path);
@@ -781,6 +844,10 @@ function CardsPane({ cards, charts, runId, links }: {
             <div className="row" style={{ gap: 9, marginBottom: 9, fontSize: 11 }}>
               <span className="cardkind" style={{ background: sev.bg, color: sev.ink }}>{c.severity}</span>
               <span className="mut">card {String(c.card_no).padStart(2, '0')}</span>
+              {ex.png.some((p) => p.card_no === c.card_no) && (
+                <a href={`/api/runs/${runId}/export/${String(c.card_no).padStart(2, '0')}.png`}
+                  download style={{ marginLeft: 'auto' }}>⤓ png</a>
+              )}
             </div>
             <h3>{linkRefs(c.title, links)}</h3>
             {c.body.length > 0 && (

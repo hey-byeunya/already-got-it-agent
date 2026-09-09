@@ -139,6 +139,16 @@ export type RunLinks = {
   snapshot: boolean;
 };
 
+/**
+ * 내보낸 결과물. 디스크에 실제로 있는 것만 담는다 —
+ * 화면이 «내려받기» 를 보여 놓고 404 를 주면 안 된다.
+ */
+export type ExportView = {
+  zip: { name: string; bytes: number } | null;
+  sources: boolean;
+  png: { card_no: number; bytes: number }[];
+};
+
 /** [ PROGRESS ] 6단계. 트레이스에서 유도한다. */
 export type Step = {
   label: string;
@@ -151,6 +161,7 @@ export type RunDetail = RunState & {
   cards: CardView[];
   steps: Step[];
   links: RunLinks;
+  exports: ExportView;
 };
 
 /** 홈 목록의 한 줄. */
