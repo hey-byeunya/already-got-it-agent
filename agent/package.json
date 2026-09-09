@@ -16,5 +16,27 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/engine.d.ts",
+      "default": "./dist/src/engine.js"
+    },
+    "./engine": {
+      "types": "./dist/src/engine.d.ts",
+      "default": "./dist/src/engine.js"
+    },
+    "./gate": {
+      "types": "./dist/src/gate.d.ts",
+      "default": "./dist/src/gate.js"
+    },
+    "./limits": {
+      "types": "./dist/src/limits.d.ts",
+      "default": "./dist/src/limits.js"
+    },
+    "./tools": {
+      "types": "./dist/src/tools.d.ts",
+      "default": "./dist/src/tools.js"
+    }
   }
 }
