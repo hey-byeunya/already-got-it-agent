@@ -10,7 +10,7 @@ import { createGate, type Decider, type GateEvent } from './gate.js';
 import { LimitTracker, limitsFromEnv, type LimitConfig, type StopReason } from './limits.js';
 import { ShadowGuard } from './shadowguard.js';
 import { createPreToolUseHook, type HookDenial } from './hook.js';
-import { systemPrompt } from './prompt.js';
+import { promptVariantFromEnv, systemPrompt } from './prompt.js';
 import { BLOCKED_BUILTINS, MCP_SERVER_KEY, READ_TOOLS, WRITE_TOOLS, shortName } from './tools.js';
 import { UsageAccountant, type UsageSnapshot } from './usage.js';
 
@@ -94,7 +94,7 @@ export async function runBriefing(opts: EngineOptions): Promise<EngineResult> {
     const stream = query({
       prompt: opts.goal,
       options: {
-        systemPrompt: systemPrompt({ runId: opts.runId, repo }),
+        systemPrompt: systemPrompt({ runId: opts.runId, repo, variant: promptVariantFromEnv() }),
         model: opts.model,
         ...(opts.resumeSessionId ? { resume: opts.resumeSessionId } : {}),
 

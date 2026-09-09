@@ -60,6 +60,8 @@ export type Trial = {
   input_tokens: number;
   output_tokens: number;
   credential_source: 'api_key' | 'stored_login';
+  /** 이 시행이 쓴 프롬프트 변종. 세팅 변화 실험에서 무엇이 달랐는지 기록으로 남긴다. */
+  prompt_variant: string;
   permission_denials: number;
   hook_denials: number;
   score: Score;
@@ -121,6 +123,7 @@ async function runTrial(variant: string, fixtureId: string, attempt: number): Pr
     input_tokens: result.usage.input_tokens,
     output_tokens: result.usage.output_tokens,
     credential_source: process.env.ANTHROPIC_API_KEY ? 'api_key' : 'stored_login',
+    prompt_variant: process.env.OPS_PROMPT_VARIANT ?? 'full',
     permission_denials: result.permissionDenials.length,
     hook_denials: result.hookDenials.length,
     score: s,
@@ -178,6 +181,7 @@ function summarize(trials: Trial[]): unknown {
     trials: trials.length,
     usage_known_trials: trials.filter((t) => t.usage_known).length,
     credential_source: trials[0]?.credential_source ?? 'unknown',
+    prompt_variant: trials[0]?.prompt_variant ?? 'full',
     지표_정의: {
       식별자_환각: '배포ID·커밋SHA·이슈번호가 픽스처에 없는 건수. 정확한 문자열 일치라 확실하다',
       지표값_환각_후보: '지표 낱말 옆 개수가 그 지표의 실제 값에 없는 건수. '

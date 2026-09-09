@@ -106,4 +106,18 @@ TODO: 픽스처 모드 실행 명령
 | | ② 되돌리기 **전후** — 이슈 생성됨 → 되돌림 → 닫힘 | ☐ |
 | 결과물 | 카드 5장 PNG, 내려받은 ZIP을 열어본 화면 | ☐ |
 
+## 지금까지 확보한 증거
+
+| 무엇 | 어디에 | 상태 |
+|---|---|---|
+| 승인 없이 쓰기 도구가 거부되는 것 | `evidence/runs/gate-deny/` + SDK `permission_denials` 1건 | ✅ 실제 모델 |
+| 승인 후 실행 + 되돌리기 | `evidence/runs/gate-approve/` (#9001 생성→닫힘) | ✅ 실제 모델 |
+| 종료 조건 실제 발동 | `evidence/runs/cap-stopped/` (`maxToolCalls`) | ✅ 실제 모델 |
+| 근거 대조를 통과한 차트 | `evidence/runs/charts/` 3장 (`source_verified`) | ✅ 실제 모델 |
+| 기준 실행 12시행 + 원고 전문 | `eval-results/E0/` | ✅ 실제 모델 |
+| 화면 — 질문 대기·승인·중단 재개·비용·차트·로그 | (캡처 예정) | ⏳ 화면에서 실행 후 |
+| Claude Code 에서 MCP 서버 붙는 화면 | (캡처 예정) | ⏳ |
+
+`evidence/runs/README.md` 에 각 실행이 무엇을 확인하는지 적어 두었다.
+
 ④⑤(3번 행)와 종료 조건 발동은 **나중에 다시 만들기 번거롭다.** 해당 단계에서 즉시 남긴다.

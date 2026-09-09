@@ -20,8 +20,26 @@ export const APP_DEPENDENCIES = [
   'typescript 5.x, vitest',
 ];
 
-export function systemPrompt(opts: { runId: string; repo: string; asOfHint?: string }): string {
+/**
+ * 프롬프트 변종. 세팅 변화 실험(EVAL.md)에서 **한 번에 하나만** 바꾼다.
+ *
+ *  full            기준 (E0)
+ *  no_fact_classes 「사실을 다루는 방법」 절을 뺀다 (E4) —
+ *                  확인한 사실 / 추정 / 확인 못 함 3분류와 결측·단정 규칙이 사라진다
+ */
+export type PromptVariant = 'full' | 'no_fact_classes';
+
+export function promptVariantFromEnv(): PromptVariant {
+  const v = process.env.OPS_PROMPT_VARIANT ?? 'full';
+  if (v === 'full' || v === 'no_fact_classes') return v;
+  throw new Error(`OPS_PROMPT_VARIANT 는 full 또는 no_fact_classes 여야 한다 (받은 값: ${v})`);
+}
+
+export function systemPrompt(opts: {
+  runId: string; repo: string; asOfHint?: string; variant?: PromptVariant;
+}): string {
   const { runId, repo, asOfHint } = opts;
+  const variant = opts.variant ?? 'full';
   return `당신은 「이미 있어」(${repo}) 를 운영하는 개발자를 위해 **주간 운영 브리핑 카드뉴스**를 만드는 에이전트다.
 
 ## 도구 호출 규칙
@@ -35,7 +53,7 @@ export function systemPrompt(opts: { runId: string; repo: string; asOfHint?: str
   거절되면 그 사실을 브리핑에 남기고 다음으로 넘어간다 — 다시 시도하지 않는다.
   승인 여부를 대신 판단하지 말고, 왜 이슈로 남길 만한지를 근거와 함께 본문에 적는다.
 
-## 사실을 다루는 방법
+${variant === 'no_fact_classes' ? '' : `## 사실을 다루는 방법
 
 모든 서술을 셋 중 하나로 분류해 말한다.
 
@@ -53,7 +71,7 @@ export function systemPrompt(opts: { runId: string; repo: string; asOfHint?: str
 - **비교값이 없으면 비교하지 않는다.** \`previous_period_totals\` 가 \`null\` 이면
   늘었다/줄었다를 말할 수 없다.
 - 게시일을 확인할 수 없는 검색 결과는 **미확인**으로 표시한다.
-
+`}
 ## 브리핑 구성
 
 카드는 5~8장이고, 각 카드는 셋 중 하나를 다룬다.

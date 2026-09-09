@@ -1,0 +1,87 @@
+{
+  "variant": "E4",
+  "fixture_id": "f3-metric-drop",
+  "attempt": 1,
+  "run_id": "eval-E4-f3-metric-drop-1",
+  "started_at": "2026-09-09T11:44:02.722Z",
+  "finished_at": "2026-09-09T11:46:15.690Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 10,
+  "elapsed_seconds": 133,
+  "usage_known": true,
+  "total_cost_usd": 0.24057480000000003,
+  "input_tokens": 8,
+  "output_tokens": 12417,
+  "credential_source": "stored_login",
+  "prompt_variant": "no_fact_classes",
+  "permission_denials": 1,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f3-metric-drop",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [],
+    "must_include": [
+      {
+        "item": "가입 4명 (전주 19명)",
+        "tokens": [
+          "19"
+        ],
+        "found": [],
+        "missing": [
+          "19"
+        ],
+        "ok": false
+      },
+      {
+        "item": "활성 사용자 18명 (전주 44명)",
+        "tokens": [
+          "18",
+          "44"
+        ],
+        "found": [
+          "18"
+        ],
+        "missing": [
+          "44"
+        ],
+        "ok": false
+      },
+      {
+        "item": "있템 등록 60건 (전주 201건)",
+        "tokens": [
+          "60",
+          "201"
+        ],
+        "found": [
+          "60"
+        ],
+        "missing": [
+          "201"
+        ],
+        "ok": false
+      },
+      {
+        "item": "시스템 쪽에는 이상이 없었다는 사실 (배포 1건 성공, 함수 오류 4건)",
+        "tokens": [],
+        "found": [],
+        "missing": [],
+        "ok": false
+      }
+    ],
+    "must_include_auto_judgeable": 3,
+    "must_include_satisfied": 0,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 868,
+  "final_text": "## 완성된 브리핑 — 「이미 있어」 주간 운영 브리핑 (2026-09-02 ~ 09-09)\n\n**카드 1 [지켜볼 것]** 이번 주 핵심 지표, 전주 대비 큰 폭 하락 → `charts/01.svg`\n가입 4건(-79%), 있템 등록 60건(-70%), 위시 등록 15건(-77%), 활성 사용자 18명(-59%). 네 지표 모두 동시에 꺾였습니다.\n\n**카드 2 [지켜볼 것]** 활성 사용자, 한 주 내내 하락 흐름 → `charts/02.svg`\n9→7→8→6→7→4→5. 특정일의 급락이 아니라 주 전체에 걸친 완만한 하락 패턴이라, 배포 사고보다는 지난 주와의 기준선 차이 쪽에 가까워 보입니다.\n\n**카드 3 [알아둘 것]** 시스템 상태: 배포 1건 정상(READY, 오류 없음), 함수 오류 4건 — 비교할 지난 기간 값이 없어 급증 여부는 판단할 수 없습니다.\n\n**카드 4 [알아둘 것]** 개발 활동 저조: 커밋 3건(작성자 1명), 병합 PR 0건, 열린 이슈 1건(\"위시 정렬 옵션 추가\", 12일째 대기).\n\n**카드 5 [알아둘 것]** 의존성 트렌드: next/react/supabase/tailwind/typescript/vitest 관련 검색 4건 모두 앱과 무관한 동일 결과(\"Vercel Analytics 요금 정책\", 게시일 미확인)만 반환되어 — 이번 주 해당 소식 **없음**으로 처리했습니다.\n\n---\n\n### 이슈 제안 결과\n`create_github_issue` 호출은 **사람이 승인하지 않아 실행되지 않았습니다.** (\"승인하지 않았다\" — 재시도하지 않음)\n\n지침대로 다시 시도하지 않고 이 사실을 기록으로 남깁니다. 지표 급락의 원인 조사가 필요하다고 판단되면, 이슈 생성을 다시 요청해 주세요."
+}
