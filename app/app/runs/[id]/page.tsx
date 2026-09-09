@@ -456,17 +456,17 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
             </div>
           </div>
           <div className="row" style={{ marginTop: 13, fontSize: 11, gap: 10 }}>
-            <span className="mut">
-              live <span className={dead ? 'wrn' : 'ok'}>
-                {dead ? 'false — 이 서버가 들고 있지 않음' : 'true — 이 서버가 실행 중'}
-              </span>
-            </span>
-            <span className="fnt">·</span>
+            {/*
+              「live true — 이 서버가 실행 중」을 뺐다. 바로 윗줄의 「live 모드」와
+              같은 낱말이 뜻만 다르게 두 번 나와 읽는 사람을 헷갈리게 했다.
+              뺀 뜻은 사라지지 않는다 — 이 서버가 들고 있지 않은 실행은
+              store.read() 가 곧바로 interrupted 로 바꾸므로 상태 배지와 중단 패널이 말한다.
+            */}
             {/* 언제 만든 브리핑인지. 목록에서 넘어오면 잊기 쉽다. */}
             <span className="mut">
-              생성 <span className="ink">{stamp(s.created_at)}</span>
-              {s.period && <> · 기간 <span className="ink">{s.period.since} ~ {s.period.until}</span></>}
-              {!s.period && <span className="fnt"> · 기간 기록 없음</span>}
+              created <span className="ink">{stamp(s.created_at)}</span>
+              {s.period && <> · period <span className="ink">{s.period.since} ~ {s.period.until}</span></>}
+              {!s.period && <span className="fnt"> · period 기록 없음</span>}
             </span>
           </div>
         </div>

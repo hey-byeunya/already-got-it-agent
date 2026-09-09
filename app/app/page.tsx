@@ -266,8 +266,8 @@ export default function Home() {
                     </span>
                     <br />
                     <span className="fnt" style={{ fontSize: 10.5 }}>
-                      생성 {stamp(r.created_at)}
-                      {r.period && ` · 기간 ${r.period.since} ~ ${r.period.until}`}
+                      created {stamp(r.created_at)}
+                      {r.period && ` · period ${r.period.since} ~ ${r.period.until}`}
                     </span>
                   </span>
                   <span style={{ justifySelf: 'start' }}><StatusBadge status={r.status} /></span>
