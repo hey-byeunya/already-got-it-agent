@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as store from '@/lib/store';
-import { readAxes, readCards, steps } from '@/lib/derive';
+import { readAxes, readCards, readLinks, steps } from '@/lib/derive';
 import type { RunDetail } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -16,6 +16,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     axes: readAxes(id),
     cards: readCards(id),
     steps: steps(state.trace, state.status),
+    links: readLinks(id, state.fixture_id),
   };
   return NextResponse.json(detail);
 }

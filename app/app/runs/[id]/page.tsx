@@ -16,7 +16,7 @@ import Link from 'next/link';
 import {
   Bar, Cursor, Gauge, Lights, SectionHead, StatusBadge, TERMINAL_STATUSES, clock,
 } from '@/components/term';
-import type { CardView, RunDetail, Step, TraceEvent } from '@/lib/types';
+import type { CardView, RunDetail, RunLinks, Step, TraceEvent } from '@/lib/types';
 
 type Conflict = { code: string; message: string };
 
@@ -42,6 +42,60 @@ function glyph(e: TraceEvent): { mark: string; cls: string; group: 'tool' | 'thi
     case 'stopped': return { mark: '■', cls: 'wrn', group: 'err' };
     default: return { mark: '·', cls: 'mut', group: 'think' };
   }
+}
+
+
+/** 바깥으로 나가는 링크. 새 탭으로 열고 referrer 를 보내지 않는다. */
+function Out({ href, children, title }: {
+  href: string; children: React.ReactNode; title?: string;
+}) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer noopener"
+      {...(title ? { title } : {})}>{children}</a>
+  );
+}
+
+/**
+ * 글 안의 `#12` 를 이슈·PR 링크로 바꾼다.
+ *
+ * **이 실행이 실제로 조회한 번호만** 링크한다. 아무 숫자나 링크하면
+ * 없는 이슈를 가리키게 되고, 카드에 적힌 «47건» 같은 수치까지 링크가 된다.
+ */
+function linkRefs(text: string, links: RunLinks): React.ReactNode {
+  if (!links.repo) return text;
+  const known = new Map<number, { url: string; kind: string }>();
+  for (const i of links.issues) known.set(i.number, { url: i.url, kind: 'issue' });
+  for (const p of links.pulls) known.set(p.number, { url: p.url, kind: 'PR' });
+  if (known.size === 0) return text;
+
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/#(\d+)/g)) {
+    const hit = known.get(Number(m[1]));
+    if (!hit) continue;
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    parts.push(
+      <Out key={`${m.index}-${m[1]}`} href={hit.url}
+        title={links.snapshot
+          ? `픽스처 스냅샷의 ${hit.kind} 참조 — 실제 저장소에 없을 수 있다`
+          : `${links.repo} ${hit.kind} #${m[1]}`}>
+        {m[0]}
+      </Out>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (parts.length === 0) return text;
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+/** 카드의 출처 문장이 web_search 를 가리키면, 그 검색이 돌려준 주소를 붙인다. */
+function webSourcesFor(card: CardView, links: RunLinks): RunLinks['web'] {
+  if (!links.web.length) return [];
+  if (!card.sources.some((x) => x.includes('web_search'))) return [];
+  // 출처 문장에 제목이 적혀 있으면 그것만, 없으면 이 실행의 검색 출처 전부.
+  const named = links.web.filter((w) => card.sources.some((x) => x.includes(w.title)));
+  return named.length ? named : links.web;
 }
 
 const SEVERITY: Record<CardView['severity'], { line: string; bg: string; ink: string }> = {
@@ -262,7 +316,12 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 10, fontSize: 12 }}>
                   {s.axes.tiles.map((t) => (
                     <div className="tile" key={t.key}>
-                      <div className="mut">{t.key}</div>
+                      <div className="mut">
+                        {t.key === 'dev' && s.links.repo
+                          ? <Out href={`https://github.com/${s.links.repo}/issues`}
+                              title={s.links.repo}>dev ↗</Out>
+                          : t.key}
+                      </div>
                       <div className="stat">
                         <span className="v">{t.value === null ? '—' : t.value}</span>{' '}
                         <span className={t.tone === 'mut' ? 'mut' : t.tone} style={{ fontSize: 11 }}>{t.note}</span>
@@ -276,6 +335,24 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                     ? <><span className="ok">[]</span> — 네 축 모두 값을 받았다</>
                     : <><span className="wrn">[{s.axes.unavailable_fields.join(', ')}]</span> — 조회하지 못했다. 0 이 아니다</>}
                 </div>
+                {/*
+                  검색 출처는 카드가 인용하지 않아도 여기 남긴다.
+                  트렌드 축의 «N hit» 이 어디서 왔는지 주소로 확인할 수 있어야 한다.
+                */}
+                {s.links.web.length > 0 && (
+                  <div className="note" style={{ marginTop: 8 }}>
+                    <span className="ok">출처</span>{' '}
+                    {s.links.web.map((w, i) => (
+                      <span key={w.url}>
+                        {i > 0 && <span className="fnt"> · </span>}
+                        <Out href={w.url} title={w.url}>{w.title}</Out>
+                        {w.published_at
+                          ? <span className="fnt"> {w.published_at}</span>
+                          : <span className="wrn"> 게시일 미확인</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
               <div className="note">아직 도구를 부르지 않았다 — 네 축 값이 없다.</div>
@@ -379,7 +456,12 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   <span className="mut">v{s.pending_approval.version}</span>
                 </div>
                 {summaryLines(s.pending_approval.summary).map(([k, v]) => (
-                  <div className="mut" key={k}>{k} <span className="ink">{v}</span></div>
+                  <div className="mut" key={k}>
+                    {k}{' '}
+                    {k === 'repo' && /^[\w.-]+\/[\w.-]+$/.test(v)
+                      ? <Out href={`https://github.com/${v}`}>{v} ↗</Out>
+                      : <span className="ink">{v}</span>}
+                  </div>
                 ))}
                 <div className="mut">
                   승인하면 <span className="ink">1회용 토큰</span>을 주입해 실행한다 — 모델은 토큰을 받지 않는다
@@ -536,15 +618,24 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                     <span className="ok">{Object.values(a.answers).join(' · ')}</span>
                   </div>
                 ))}
-                {s.decisions.map((d) => (
-                  <div className="spread" key={d.approval_id}
-                    style={{ padding: '7px 0', borderBottom: '1px solid var(--line-faint)' }}>
-                    <span className="mut">{d.tool} <span className="fnt">{d.approval_id}</span></span>
-                    <span className={d.approved ? 'ok' : 'bad'}>
-                      {d.approved ? '승인 — 토큰 주입해 실행' : `거절 — ${d.reason ?? '사람이 승인하지 않았다'}`}
-                    </span>
-                  </div>
-                ))}
+                {s.decisions.map((d, i) => {
+                  // 승인 기록은 순서대로 쌓이므로, n 번째 승인이 n 번째로 만들어진 이슈다.
+                  const madeSoFar = s.decisions.slice(0, i + 1).filter((x) => x.approved).length;
+                  const made = d.approved ? s.links.created[madeSoFar - 1] : undefined;
+                  return (
+                    <div className="spread" key={d.approval_id}
+                      style={{ padding: '7px 0', borderBottom: '1px solid var(--line-faint)' }}>
+                      <span className="mut">{d.tool} <span className="fnt">{d.approval_id}</span></span>
+                      <span className={d.approved ? 'ok' : 'bad'}>
+                        {d.approved ? '승인 — 토큰 주입해 실행' : `거절 — ${d.reason ?? '사람이 승인하지 않았다'}`}
+                        {made && (made.url
+                          ? <> · <Out href={made.url}>#{made.number} ↗</Out></>
+                          : <> · <span className="wrn" title="fixture 모드다. 실제 이슈는 만들어지지 않았다">
+                              #{made.number} (시뮬레이션)</span></>)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
             <div className="note" style={{ marginTop: 10 }}>
@@ -557,7 +648,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
         <div style={{ display: 'grid', gridTemplateColumns: bottomCols }}>
           <div style={{ padding: 18, minWidth: 0 }}>
             {view === 'card' ? (
-              <CardsPane cards={s.cards} charts={s.charts} runId={s.run_id} />
+              <CardsPane cards={s.cards} charts={s.charts} runId={s.run_id} links={s.links} />
             ) : (
               <div style={{ border: '1px solid var(--line)', background: 'var(--raised)' }}>
                 <div className="spread" style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', fontSize: 11.5 }}>
@@ -640,8 +731,9 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
 }
 
 /** 카드가 있으면 카드를, 없으면 차트만이라도 보여준다. 둘 다 없으면 왜 없는지 적는다. */
-function CardsPane({ cards, charts, runId }: {
-  cards: CardView[]; charts: { card_no: number; svg_path: string }[]; runId: string;
+function CardsPane({ cards, charts, runId, links }: {
+  cards: CardView[]; charts: { card_no: number; svg_path: string }[];
+  runId: string; links: RunLinks;
 }) {
   const chartOf = (p?: string) => charts.find((c) => c.svg_path === p);
 
@@ -675,6 +767,12 @@ function CardsPane({ cards, charts, runId }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <SectionHead label={`[ CARDS ] ${cards.length}`}
         right={<span className="note">근거 없는 수치는 카드에 오르지 않는다</span>} />
+      {links.snapshot && (links.issues.length > 0 || links.pulls.length > 0) && (
+        <div className="note" style={{ marginTop: -4 }}>
+          이슈·PR 링크는 <span className="wrn">픽스처 스냅샷</span>의 참조다 —
+          실제 저장소에는 없을 수 있다.
+        </div>
+      )}
       {cards.map((c) => {
         const sev = SEVERITY[c.severity];
         const chart = chartOf(c.chart_path);
@@ -684,9 +782,11 @@ function CardsPane({ cards, charts, runId }: {
               <span className="cardkind" style={{ background: sev.bg, color: sev.ink }}>{c.severity}</span>
               <span className="mut">card {String(c.card_no).padStart(2, '0')}</span>
             </div>
-            <h3>{c.title}</h3>
+            <h3>{linkRefs(c.title, links)}</h3>
             {c.body.length > 0 && (
-              <div className="body">{c.body.map((line, i) => <div key={i}>{line}</div>)}</div>
+              <div className="body">
+                {c.body.map((line, i) => <div key={i}>{linkRefs(line, links)}</div>)}
+              </div>
             )}
             {chart && (
               <div className="frame" style={{ marginTop: 11 }}>
@@ -694,9 +794,19 @@ function CardsPane({ cards, charts, runId }: {
               </div>
             )}
             {c.sources.length > 0 && (
-              <div className="src">근거 {c.sources.map((x, i) => (
-                <span key={i}>{i > 0 && ' · '}<span className="ok">{x}</span></span>
-              ))}</div>
+              <div className="src">
+                <div>근거 {c.sources.map((x, i) => (
+                  <span key={i}>{i > 0 && ' · '}<span className="ok">{x}</span></span>
+                ))}</div>
+                {webSourcesFor(c, links).map((w) => (
+                  <div key={w.url} style={{ marginTop: 4 }}>
+                    ↗ <Out href={w.url}>{w.title}</Out>
+                    {w.published_at
+                      ? <span className="fnt"> · {w.published_at}</span>
+                      : <span className="wrn"> · 게시일 미확인</span>}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         );

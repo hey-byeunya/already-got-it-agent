@@ -11,7 +11,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { RUNS_DIR } from './paths';
-import type { AxesView, AxisTile, CardView, Step, TraceEvent } from './types';
+import type { AxesView, AxisTile, CardView, RunLinks, Step, TraceEvent } from './types';
 
 const EMPTY_AXES: AxesView = {
   tiles: [
@@ -24,7 +24,7 @@ const EMPTY_AXES: AxesView = {
   collected: false,
 };
 
-type ToolCall = { seq: number; tool: string; output: unknown; ok: boolean };
+type ToolCall = { seq: number; tool: string; input?: unknown; output: unknown; ok: boolean };
 
 function readToolCalls(runId: string): ToolCall[] {
   const path = join(RUNS_DIR, runId, 'toolcalls.jsonl');
@@ -230,4 +230,102 @@ export function resultLine(s: {
   if (s.status === 'waiting_for_user') parts.push('사람의 답 대기');
   if (!parts.length) return s.final_text ? '원고 작성됨' : '아직 결과 없음';
   return parts.join(' · ');
+}
+
+
+// ───────────────────────────────────────────────── 바깥으로 나가는 주소
+
+/** owner/name 만 받는다. 여기서 막지 않으면 도구 출력이 그대로 URL 이 된다. */
+const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+/** http(s) 가 아닌 것은 링크로 만들지 않는다 (javascript: 같은 것). */
+function safeUrl(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : null;
+  } catch { return null; }
+}
+
+/**
+ * 이 실행이 언급한 이슈·PR·검색 결과의 주소를 모은다.
+ *
+ * 이슈·PR 주소는 도구가 주지 않아 repo 와 번호로 **조립한다.**
+ * 그래서 픽스처 실행에서는 실제로 없는 이슈를 가리킬 수 있다 —
+ * `snapshot: true` 로 그 사실을 함께 내려보내고, 화면이 밝힌다.
+ */
+export function readLinks(runId: string, fixtureId: string | null): RunLinks {
+  const snapshot = fixtureId !== null;
+  const empty: RunLinks = {
+    repo: null, issues: [], pulls: [], web: [], created: [], snapshot,
+  };
+
+  const calls = readToolCalls(runId);
+  const dev = calls.filter((c) => c.tool === 'get_dev_activity' && c.ok).pop();
+  const rawRepo = (dev?.input as { repo?: unknown } | undefined)?.repo;
+  const repo = typeof rawRepo === 'string' && REPO_RE.test(rawRepo) ? rawRepo : null;
+
+  const out: RunLinks = { ...empty, repo };
+
+  if (repo && dev) {
+    const o = obj(dev.output);
+    const issues = Array.isArray(o.open_issues) ? o.open_issues : [];
+    for (const raw of issues) {
+      const i = obj(raw);
+      const n = num(i.number);
+      if (n === null) continue;
+      out.issues.push({
+        number: n,
+        title: typeof i.title === 'string' ? i.title : '',
+        url: `https://github.com/${repo}/issues/${n}`,
+      });
+    }
+    const pulls = Array.isArray(o.pull_requests) ? o.pull_requests : [];
+    for (const raw of pulls) {
+      const n = num(obj(raw).number);
+      if (n !== null) out.pulls.push({ number: n, url: `https://github.com/${repo}/pull/${n}` });
+    }
+  }
+
+  // 검색 출처. 같은 url 이 여러 질의에서 나오므로 접는다.
+  const seen = new Set<string>();
+  for (const c of calls) {
+    if (c.tool !== 'web_search' || !c.ok) continue;
+    const results = obj(c.output).results;
+    if (!Array.isArray(results)) continue;
+    for (const raw of results) {
+      const r = obj(raw);
+      const url = safeUrl(r.url);
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      out.web.push({
+        title: typeof r.title === 'string' ? r.title : url,
+        url,
+        published_at: typeof r.published_at === 'string' ? r.published_at : null,
+      });
+    }
+  }
+
+  // 승인을 받아 만든 이슈. 기록은 MCP 서버의 approvals.json 이 정본이다.
+  try {
+    const p = join(RUNS_DIR, runId, 'approvals.json');
+    if (existsSync(p)) {
+      const store = JSON.parse(readFileSync(p, 'utf8')) as { log?: unknown };
+      for (const raw of Array.isArray(store.log) ? store.log : []) {
+        const created = obj(obj(raw).created);
+        const n = num(created.issue_number);
+        const r = typeof created.repo === 'string' ? created.repo : repo;
+        if (n === null || !r) continue;
+        out.created.push({
+          number: n,
+          repo: r,
+          // 픽스처에서 만든 이슈는 실제로 없다. 주소를 주면 없는 곳을 가리킨다.
+          url: snapshot || !REPO_RE.test(r) ? null : `https://github.com/${r}/issues/${n}`,
+          simulated: snapshot,
+        });
+      }
+    }
+  } catch { /* 기록이 깨졌으면 링크 없이 간다 */ }
+
+  return out;
 }

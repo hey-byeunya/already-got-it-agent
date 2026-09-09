@@ -121,6 +121,24 @@ export type CardView = {
   severity: 'FIX_NOW' | 'WATCH' | 'METRICS' | 'FYI' | 'COVER';
 };
 
+/**
+ * 이 실행이 언급하는 바깥 것들의 주소.
+ *
+ * 픽스처 모드에서는 이 참조가 **스냅샷 안의 것**이다 — 실제 저장소에는 없을 수 있다.
+ * 그래서 `snapshot` 을 함께 내려보내 화면이 그 사실을 밝히게 한다.
+ */
+export type RunLinks = {
+  repo: string | null;
+  issues: { number: number; title: string; url: string }[];
+  pulls: { number: number; url: string }[];
+  /** web_search 가 돌려준 출처. url 중복은 접는다. */
+  web: { title: string; url: string; published_at: string | null }[];
+  /** 승인을 받아 만든 이슈. fixture 모드면 simulated 다 — 실제로는 만들어지지 않았다. */
+  created: { number: number; repo: string; url: string | null; simulated: boolean }[];
+  /** 픽스처 실행인가. true 면 위 참조는 스냅샷 안의 것이다. */
+  snapshot: boolean;
+};
+
 /** [ PROGRESS ] 6단계. 트레이스에서 유도한다. */
 export type Step = {
   label: string;
@@ -132,6 +150,7 @@ export type RunDetail = RunState & {
   axes: AxesView;
   cards: CardView[];
   steps: Step[];
+  links: RunLinks;
 };
 
 /** 홈 목록의 한 줄. */
