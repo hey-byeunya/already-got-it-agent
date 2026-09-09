@@ -102,26 +102,56 @@ function webSourcesFor(card: CardView, links: RunLinks): RunLinks['web'] {
 const kb = (b: number) => `${Math.round(b / 1024).toLocaleString()}KB`;
 
 /**
- * 내보낸 결과물 내려받기 — PRD 1절 「카드별 PNG와 전체 ZIP, 그리고 근거 기록을 함께 내려받는다」.
+ * 카드뉴스 내보내기 — **사람이 누를 때만 굽는다.**
  *
- * 디스크에 **실제로 있는 것만** 보여준다. 없으면 왜 없는지 적는다 —
- * 눌리지 않는 버튼을 두지 않는다는 이 화면의 규칙과 같다.
+ * 이미지 굽기는 카드당 브라우저를 한 번 띄우는 일이라 느리다. 문안을 고칠 때마다
+ * 다시 구우면 낭비이고, 스토리보드가 됐는지는 사람이 판단할 일이다.
+ * 그래서 에이전트는 카드까지만 만들고, 굽는 것은 이 버튼이 한다.
+ *
+ * 굽고 난 뒤에야 내려받기와 미리보기가 생긴다 — 디스크에 **실제로 있는 것만** 보여준다.
  */
-function ExportBar({ runId, ex, cardCount }: {
+function ExportBar({ runId, ex, cardCount, exporting, busy, onExport }: {
   runId: string; ex: ExportView; cardCount: number;
+  exporting: boolean; busy: boolean; onExport: () => void;
 }) {
   const base = `/api/runs/${runId}/export`;
-  if (!ex.zip && !ex.sources && ex.png.length === 0) {
+  const made = Boolean(ex.zip) || ex.png.length > 0;
+  const stale = made && cardCount > 0 && ex.png.length !== cardCount;
+
+  const button = (
+    <button className={made ? undefined : 'primary'}
+      disabled={busy || exporting || cardCount === 0}
+      onClick={onExport}
+      title={cardCount === 0 ? '내보낼 카드가 없다' : ''}>
+      {exporting ? '굽는 중…' : made ? '다시 내보내기' : `카드뉴스 내보내기 (${cardCount}장)`}
+    </button>
+  );
+
+  if (!made) {
     return (
-      <div className="note">
-        아직 내보내지 않았다 — <span className="ink">export_cardnews</span> 가 돌면
-        ZIP · 카드 PNG · 근거 기록을 여기서 내려받는다.
+      <div className="row" style={{ gap: 12 }}>
+        {button}
+        <span className="note">
+          {cardCount === 0
+            ? '카드가 아직 없다. 카드를 만들면 여기서 PNG · ZIP · 근거 기록을 만든다.'
+            : '누르면 카드를 PNG 로 굽고 ZIP 으로 묶는다. 그 뒤에 내려받을 수 있다.'}
+        </span>
       </div>
     );
   }
+
   return (
-    <div className="note" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'baseline' }}>
-      <span className="ok">⤓ 내려받기</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="row" style={{ gap: 12 }}>
+        {button}
+        {stale && (
+          <span className="note wrn">
+            카드 {cardCount}장 중 {ex.png.length}장만 구워져 있다 — 다시 내보낸다
+          </span>
+        )}
+      </div>
+      <div className="note" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'baseline' }}>
+        <span className="ok">⤓ 내려받기</span>
       {ex.zip && (
         <a href={`${base}/zip`} download>
           {ex.zip.name} <span className="fnt">{kb(ex.zip.bytes)}</span>
@@ -142,6 +172,27 @@ function ExportBar({ runId, ex, cardCount }: {
             </span>
           ))}
         </span>
+      )}
+      </div>
+
+      {/* 미리보기 — 구워진 그림이 실제로 어떻게 나왔는지 본다. */}
+      {ex.png.length > 0 && (
+        <div>
+          <div className="note" style={{ marginBottom: 6 }}>미리보기 — 누르면 원본이 열린다</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8 }}>
+            {ex.png.map((p) => {
+              const nn = String(p.card_no).padStart(2, '0');
+              return (
+                <a key={p.card_no} href={`${base}/${nn}.png?inline`} target="_blank" rel="noreferrer noopener"
+                  title={`카드 ${nn} · ${kb(p.bytes)}`}>
+                  <img src={`${base}/${nn}.png?inline`} alt={`카드 ${nn} 미리보기`}
+                    style={{ display: 'block', width: '100%', border: '1px solid var(--line-hi)' }} />
+                  <span className="note" style={{ display: 'block', textAlign: 'center' }}>{nn}</span>
+                </a>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -214,6 +265,18 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
     void poll();
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [poll]);
+
+  /** 카드뉴스 굽기. 사람이 눌렀을 때만 돈다. */
+  async function exportCards() {
+    setBusy(true); setConflict(null);
+    const res = await fetch(`/api/runs/${id}/export`, { method: 'POST' });
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({})) as { error?: string; message?: string };
+      setConflict({ code: b.error ?? String(res.status), message: b.message ?? '내보내지 못했다' });
+    }
+    setBusy(false);
+    await poll();
+  }
 
   async function post(path: string, body: unknown) {
     setBusy(true); setConflict(null);
@@ -515,6 +578,24 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                 <div className="mut">
                   승인하면 <span className="ink">1회용 토큰</span>을 주입해 실행한다 — 모델은 토큰을 받지 않는다
                 </div>
+                {/*
+                  픽스처 실행은 simulated 로 끝나지만 live 는 실제 저장소를 바꾼다.
+                  같은 버튼이 두 가지 다른 결과를 내므로, 어느 쪽인지 승인 **전에** 말한다.
+                */}
+                {s.fixture_id === null ? (
+                  <div className="bad">
+                    ⚠ live 모드다 — 승인하면{' '}
+                    {s.links.repo
+                      ? <Out href={`https://github.com/${s.links.repo}/issues`}>{s.links.repo}</Out>
+                      : '실제 저장소'}
+                    {' '}에 <b>진짜 이슈가 만들어진다.</b> 되돌리려면 revert_issue 로 닫아야 한다
+                  </div>
+                ) : (
+                  <div className="mut">
+                    fixture 모드다 — 승인해도 <span className="ink">실제 이슈는 만들어지지 않는다</span>
+                    {' '}(<span className="fnt">simulated</span>)
+                  </div>
+                )}
               </div>
               <div className="row" style={{ gap: 8 }}>
                 <button onClick={() => setGate((v) => !v)}>--diff</button>
@@ -698,7 +779,8 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
           <div style={{ padding: 18, minWidth: 0 }}>
             {view === 'card' ? (
               <CardsPane cards={s.cards} charts={s.charts} runId={s.run_id}
-                links={s.links} exports={s.exports} />
+                links={s.links} exports={s.exports}
+                exporting={s.cards_exporting === true} busy={busy} onExport={() => void exportCards()} />
             ) : (
               <div style={{ border: '1px solid var(--line)', background: 'var(--raised)' }}>
                 <div className="spread" style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', fontSize: 11.5 }}>
@@ -781,9 +863,10 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
 }
 
 /** 카드가 있으면 카드를, 없으면 차트만이라도 보여준다. 둘 다 없으면 왜 없는지 적는다. */
-function CardsPane({ cards, charts, runId, links, exports: ex }: {
+function CardsPane({ cards, charts, runId, links, exports: ex, exporting, busy, onExport }: {
   cards: CardView[]; charts: { card_no: number; svg_path: string }[];
   runId: string; links: RunLinks; exports: ExportView;
+  exporting: boolean; busy: boolean; onExport: () => void;
 }) {
   const chartOf = (p?: string) => charts.find((c) => c.svg_path === p);
 
@@ -793,7 +876,8 @@ function CardsPane({ cards, charts, runId, links, exports: ex }: {
         <SectionHead label={`[ CARDS ] ${charts.length}`} tone="mut"
           right={<span className="note">근거 없는 수치는 카드에 오르지 않는다</span>} />
         <div style={{ padding: '10px 12px', border: '1px solid var(--line)', background: 'var(--raised)' }}>
-          <ExportBar runId={runId} ex={ex} cardCount={0} />
+          <ExportBar runId={runId} ex={ex} cardCount={0}
+          exporting={exporting} busy={busy} onExport={onExport} />
         </div>
         {charts.length === 0 ? (
           <div className="hatch" style={{ padding: '26px 20px', textAlign: 'center' }}>
@@ -834,7 +918,8 @@ function CardsPane({ cards, charts, runId, links, exports: ex }: {
         </div>
       )}
       <div style={{ padding: '10px 12px', border: '1px solid var(--line)', background: 'var(--raised)' }}>
-        <ExportBar runId={runId} ex={ex} cardCount={cards.length} />
+        <ExportBar runId={runId} ex={ex} cardCount={cards.length}
+          exporting={exporting} busy={busy} onExport={onExport} />
       </div>
       {cards.map((c) => {
         const sev = SEVERITY[c.severity];

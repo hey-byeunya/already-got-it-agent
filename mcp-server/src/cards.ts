@@ -582,3 +582,93 @@ export function readCardSpecs(cardsDir: string): CardSpec[] {
       }
     });
 }
+
+
+// ───────────────────────────────────────────────────────────── 내보내기
+
+/** 카드뉴스 한 편의 길이 (PRD 1절). 도구와 화면이 같은 값을 봐야 한다. */
+export const MIN_CARDS = 5;
+export const MAX_CARDS = 8;
+
+export type ExportResult = {
+  zip_path: string;
+  zip_bytes: number;
+  cards: number;
+  card_count_note?: string;
+  entries: string[];
+  png: { card_no: number; file: string; bytes: number; width: number; height: number; opened_ok: boolean }[];
+  sources_path: string;
+  opened_ok: true;
+};
+
+/**
+ * 카드를 PNG 로 굽고 ZIP 한 개로 묶는다.
+ *
+ * **도구(export_cardnews)와 화면의 「내보내기」 버튼이 같은 이 함수를 부른다.**
+ * 두 곳에 따로 구현하면 한쪽만 고쳐지고, 사람이 만든 것과 에이전트가 만든 것이 달라진다.
+ *
+ * 경로는 runDir 로 받는다 — config.runsDir 에 기대면 앱(cwd 가 app/)에서 엉뚱한 곳을 본다.
+ */
+export function exportCardnews(opts: { runDir: string; runId: string; mode: string }): ExportResult {
+  const { runDir, runId, mode } = opts;
+  const at = (...parts: string[]) => join(runDir, ...parts);
+
+  const specs = readCardSpecs(at('cards'));
+  if (!specs.length) {
+    throw new ToolError('no_cards', '내보낼 카드가 없다. 먼저 compose_card 로 만든다', {});
+  }
+
+  // 번호가 1부터 빠짐없이 이어지는지 본다. 순서는 ZIP 파일명으로 고정된다.
+  const numbers = specs.map((c) => c.card_no).sort((a, b) => a - b);
+  if (numbers.some((n, i) => n !== i + 1)) {
+    throw new ToolError('card_numbers_not_contiguous',
+      '카드 번호가 1부터 이어지지 않는다. 빠진 번호를 만들거나 번호를 다시 매긴다',
+      { found: numbers });
+  }
+
+  // 한 편은 5~8장이다 (PRD 1절).
+  // **위쪽만 막는다.** 너무 긴 카드뉴스는 결함이지만 너무 짧은 것은 결함이 아닐 수 있다 —
+  // 프롬프트가 "자료가 부족하면 카드 수를 채우려 하지 말라"고 지시하기 때문이다.
+  if (specs.length > MAX_CARDS) {
+    throw new ToolError('too_many_cards',
+      `한 편은 ${MAX_CARDS}장까지다. 덜 중요한 카드를 합치거나 뺀 뒤 다시 내보낸다`,
+      { count: specs.length, allowed: MAX_CARDS });
+  }
+  const short = specs.length < MIN_CARDS
+    ? `카드가 ${specs.length}장이다 (보통 ${MIN_CARDS}~${MAX_CARDS}장).`
+      + ' 자료가 부족해서라면 그대로 두고, 무엇이 부족한지 브리핑에 적는다'
+    : null;
+
+  const rendered = specs.map((c) => {
+    const nn = String(c.card_no).padStart(2, '0');
+    const r = rasterize(at('cards', `${nn}.svg`), at('png', `${nn}.png`));
+    return { card_no: c.card_no, file: `${nn}.png`, ...r };
+  });
+
+  const failed = rendered.filter((r) => !r.opened_ok);
+  if (failed.length) {
+    throw new ToolError('export_incomplete',
+      'PNG 로 열리지 않는 카드가 있다. ZIP 을 만들지 않는다',
+      { failed, expected_size: `${CARD_W}x${CARD_H}` });
+  }
+
+  const sources = sourcesMarkdown(runId, specs, mode);
+  writeFileSync(at('SOURCES.md'), sources);
+
+  const zipName = `cardnews-${runId}.zip`;
+  const zipBytes = writeZip(at(zipName), [
+    ...rendered.map((r) => ({ name: `cards/${r.file}`, data: readFileSync(at('png', r.file)) })),
+    { name: 'SOURCES.md', data: Buffer.from(sources, 'utf8') },
+  ]);
+
+  return {
+    zip_path: zipName,
+    zip_bytes: zipBytes,
+    cards: rendered.length,
+    ...(short ? { card_count_note: short } : {}),
+    entries: [...rendered.map((r) => `cards/${r.file}`), 'SOURCES.md'],
+    png: rendered,
+    sources_path: 'SOURCES.md',
+    opened_ok: true,
+  };
+}

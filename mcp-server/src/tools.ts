@@ -14,17 +14,12 @@ import { openRun, runPath } from './runlog.js';
 import { consume, appendLog, createdIssueNumbers, createdIssueRepo, isAlreadyReverted } from './approvals.js';
 import { renderBarChart, verifySource, verifySourceRow, writeSvg, type ChartPoint } from './chart.js';
 import {
-  CARD_H, CARD_W, composeCard, rasterize, readCardSpecs, sourcesMarkdown, writeZip,
-  type CardSpec,
+  MAX_CARDS, MIN_CARDS, composeCard, exportCardnews, type CardSpec,
 } from './cards.js';
 import { systemHealth } from './live/vercel.js';
 import { userMetrics } from './live/supabase.js';
 import { devActivity, createIssue, closeIssue } from './live/github.js';
 import { search as searchAdvisories } from './live/advisories.js';
-
-/** 카드뉴스 한 편의 길이 (PRD 1절). 프롬프트와 이 상수가 같은 값을 봐야 한다. */
-const MIN_CARDS = 5;
-const MAX_CARDS = 8;
 
 const period = {
   since: z.string().describe('기간 시작 (ISO 8601)'),
@@ -302,72 +297,12 @@ export function registerAllTools(server: McpServer): void {
     }),
     handler: ({ run_id, note }) => {
       const meta = openRun(run_id);
-      const cardsDir = runPath(run_id, 'cards');
-      const specs = readCardSpecs(cardsDir);
-      if (!specs.length) {
-        throw new ToolError('no_cards', '내보낼 카드가 없다. 먼저 compose_card 로 만든다', {});
-      }
-
-      // 번호가 1부터 빠짐없이 이어지는지 본다. 순서는 ZIP 파일명으로 고정된다.
-      const numbers = specs.map((c) => c.card_no).sort((a, b) => a - b);
-      const gaps = numbers.filter((n, i) => n !== i + 1);
-      if (gaps.length) {
-        throw new ToolError('card_numbers_not_contiguous',
-          '카드 번호가 1부터 이어지지 않는다. 빠진 번호를 만들거나 번호를 다시 매긴다',
-          { found: numbers });
-      }
-
-      // 한 편은 5~8장이다 (PRD 1절). 프롬프트에만 적어 두었더니 도구가 검사하지 않아
-      // 설명이 아무것도 제한하지 못했다 — 이 파일 머리의 규칙과 어긋나 있었다.
-      //
-      // **위쪽만 막는다.** 너무 긴 카드뉴스는 결함이지만, 너무 짧은 것은 결함이 아닐 수 있다 —
-      // 프롬프트가 "자료가 부족하면 카드 수를 채우려 하지 말라"고 지시하기 때문이다.
-      // 아래쪽까지 막으면 그 지시와 충돌해 모델이 억지로 카드를 만들게 된다.
-      if (specs.length > MAX_CARDS) {
-        throw new ToolError('too_many_cards',
-          `한 편은 ${MAX_CARDS}장까지다. 덜 중요한 카드를 합치거나 뺀 뒤 다시 내보낸다`,
-          { count: specs.length, allowed: MAX_CARDS });
-      }
-      const short = specs.length < MIN_CARDS
-        ? `카드가 ${specs.length}장이다 (보통 ${MIN_CARDS}~${MAX_CARDS}장).`
-          + ' 자료가 부족해서라면 그대로 두고, 무엇이 부족한지 브리핑에 적는다'
-        : null;
-
-      const rendered = specs.map((c) => {
-        const nn = String(c.card_no).padStart(2, '0');
-        const r = rasterize(runPath(run_id, `cards/${nn}.svg`), runPath(run_id, `png/${nn}.png`));
-        return { card_no: c.card_no, file: `${nn}.png`, ...r };
-      });
-
-      const failed = rendered.filter((r) => !r.opened_ok);
-      if (failed.length) {
-        throw new ToolError('export_incomplete',
-          'PNG 로 열리지 않는 카드가 있다. ZIP 을 만들지 않는다',
-          { failed, expected_size: `${CARD_W}x${CARD_H}` });
-      }
-
-      const sources = sourcesMarkdown(run_id, specs, meta.mode);
-      writeFileSync(runPath(run_id, 'SOURCES.md'), sources);
-
-      const zipName = `cardnews-${run_id}.zip`;
-      const zipBytes = writeZip(runPath(run_id, zipName), [
-        ...rendered.map((r) => ({
-          name: `cards/${r.file}`,
-          data: readFileSync(runPath(run_id, `png/${r.file}`)),
-        })),
-        { name: 'SOURCES.md', data: Buffer.from(sources, 'utf8') },
-      ]);
-
+      // 실제 굽기와 묶기는 cards.ts 가 한다 — 화면의 「내보내기」 버튼도 같은 함수를 부른다.
+      const out = exportCardnews({ runDir: runPath(run_id), runId: run_id, mode: meta.mode });
       return {
-        zip_path: zipName, zip_bytes: zipBytes,
-        cards: rendered.length,
-        ...(short ? { card_count_note: short } : {}),
-        entries: [...rendered.map((r) => `cards/${r.file}`), 'SOURCES.md'],
-        png: rendered,
-        sources_path: 'SOURCES.md',
-        opened_ok: true,
+        ...out,
         note: note ?? null,
-        verify_hint: `unzip -l runs/${run_id}/${zipName} 로 순서와 수량을 확인한다`,
+        verify_hint: `unzip -l runs/${run_id}/${out.zip_path} 로 순서와 수량을 확인한다`,
       };
     },
   });

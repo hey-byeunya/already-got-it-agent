@@ -80,6 +80,8 @@ export type RunState = {
   focus?: string;
   /** 브리핑 기간. 프롬프트 줄에 --since/--until 로 보인다. */
   period?: { since: string; until: string };
+  /** 지금 카드뉴스를 굽고 있는가. 두 번 눌러 두 번 굽지 않게 한다. */
+  cards_exporting?: boolean;
 };
 
 export type RunLimits = {

@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { FIXTURES_DIR } from '@/lib/paths';
 import * as store from '@/lib/store';
-import { credentialSource, start } from '@/lib/runner';
+import { credentialSource, opsMode, start } from '@/lib/runner';
 import { limitsFromEnv } from 'already-got-it-ops-agent/limits';
 
 export const runtime = 'nodejs';
@@ -35,6 +35,9 @@ export function GET() {
     fixtures: listFixtures(),
     credential_source: credentialSource(),
     limits: limitsFromEnv(),
+    mode: opsMode(),
+    allowed_repos: (process.env.GITHUB_ALLOWED_REPOS ?? 'hey-byeunya/already-got-it')
+      .split(',').map((x) => x.trim()).filter(Boolean),
   });
 }
 

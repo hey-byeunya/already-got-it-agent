@@ -36,6 +36,14 @@
     "./config": {
       "types": "./dist/src/config.d.ts",
       "default": "./dist/src/config.js"
+    },
+    "./cards": {
+      "types": "./dist/src/cards.d.ts",
+      "default": "./dist/src/cards.js"
+    },
+    "./errors": {
+      "types": "./dist/src/errors.d.ts",
+      "default": "./dist/src/errors.js"
     }
   }
 }

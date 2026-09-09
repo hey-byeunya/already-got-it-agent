@@ -36,9 +36,11 @@ function resolveTarget(runId: string, file: string):
   return null;
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string; file: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string; file: string }> }) {
   const { id, file } = await ctx.params;
   if (!isValidRunId(id)) return new Response('bad request', { status: 400 });
+  // 미리보기는 같은 파일을 **화면에 그려야** 하므로 attachment 를 붙이지 않는다.
+  const inline = new URL(req.url).searchParams.has('inline');
 
   const target = resolveTarget(id, file);
   if (!target) return new Response('bad request', { status: 400 });
@@ -50,7 +52,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string; fi
     headers: {
       'content-type': target.type,
       'content-length': String(statSync(target.path).size),
-      'content-disposition': `attachment; filename="${target.name}"`,
+      ...(inline ? {} : { 'content-disposition': `attachment; filename="${target.name}"` }),
       'cache-control': 'no-store',
     },
   });

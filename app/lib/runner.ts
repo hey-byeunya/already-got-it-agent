@@ -34,6 +34,16 @@ export type CredentialSource = 'api_key' | 'auth_token' | 'stored_login';
  *
  * 어느 쪽인지는 비용이 어느 지갑에서 빠지는지를 결정하므로 화면에 표시한다.
  */
+/**
+ * 지금 어느 모드로 도는가. 새 실행이 fixture 를 읽을지 실제 API 를 부를지 결정한다.
+ *
+ * `.env.local` 을 읽은 **뒤에** 판정해야 한다 — 그 전에 보면 항상 fixture 로 보인다.
+ */
+export function opsMode(): 'fixture' | 'live' {
+  loadEnv();
+  return process.env.OPS_MODE?.trim() === 'live' ? 'live' : 'fixture';
+}
+
 export function credentialSource(): CredentialSource {
   loadEnv();
   if (process.env.ANTHROPIC_API_KEY) return 'api_key';
@@ -91,7 +101,7 @@ export function start(opts: StartOptions): void {
   }
 
   const childEnv: Record<string, string> = {
-    OPS_MODE: process.env.OPS_MODE ?? 'fixture',
+    OPS_MODE: opsMode(),
     OPS_RUNS_DIR: RUNS_DIR,
     OPS_FIXTURES_DIR: FIXTURES_DIR,
     GITHUB_ALLOWED_REPOS: process.env.GITHUB_ALLOWED_REPOS ?? 'hey-byeunya/already-got-it',

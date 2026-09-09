@@ -19,6 +19,8 @@ type Listing = {
   fixtures: { id: string; label: string }[];
   credential_source: 'api_key' | 'auth_token' | 'stored_login';
   limits: RunLimits;
+  mode: 'fixture' | 'live';
+  allowed_repos: string[];
 };
 
 type Engine = 'claude' | 'opencode';
@@ -142,11 +144,15 @@ export default function Home() {
   };
   const rowCols = narrow ? 'minmax(0,1fr) auto' : '190px 168px minmax(0,1fr) 96px';
   const lim = data?.limits;
+  const live = data?.mode === 'live';
 
   return (
     <main>
-      <div className="sechead" style={{ letterSpacing: '.16em', color: 'var(--muted)', marginBottom: 9 }}>
-        [ HOME ]
+      <div className="spread" style={{ marginBottom: 9, alignItems: 'center' }}>
+        <span className="sechead" style={{ letterSpacing: '.16em', color: 'var(--muted)' }}>
+          [ HOME ]
+        </span>
+        <ModeBadge data={data} />
       </div>
 
       <div className="win" style={{ padding: '20px 22px' }}>
@@ -276,15 +282,19 @@ export default function Home() {
             </div>
             {error && <div className="note bad" style={{ marginTop: 8 }}>{error}</div>}
 
-            <div className="note" style={{ margin: '14px 0 6px' }}>--fixture</div>
-            <select value={fixture} onChange={(e) => setFixture(e.target.value)}>
+            <div className="note" style={{ margin: '14px 0 6px' }}>
+              --fixture{live && <span className="fnt"> · live 모드에서는 쓰지 않는다</span>}
+            </div>
+            <select value={fixture} disabled={live} onChange={(e) => setFixture(e.target.value)}>
               {(data?.fixtures ?? []).map((f) => (
                 <option key={f.id} value={f.id}>{f.id} — {f.label}</option>
               ))}
             </select>
             <div className="note" style={{ marginTop: 9 }}>
               {lim && <>limits: iter {lim.maxTurns} · tool {lim.maxToolCalls} · ${lim.maxBudgetUsd} · {lim.maxElapsedSeconds}s<br /></>}
-              fixture 모드 · 외부 API 호출 없음
+              {live
+                ? <><span className="wrn">live 모드</span> · 실제 API 를 부른다. 픽스처 선택은 무시된다</>
+                : <>fixture 모드 · 외부 API 호출 없음</>}
             </div>
 
             {/* PRESETS */}
@@ -336,6 +346,30 @@ export default function Home() {
         </div>
       </div>
     </main>
+  );
+}
+
+/**
+ * 지금 어느 모드로 도는가.
+ *
+ * 이 표시가 없으면 시작 화면만 보고는 알 수 없다 — 픽스처 선택칸이 있으니
+ * 늘 픽스처인 줄 알기 쉽다. live 는 실제 저장소·실제 지표를 부르므로 눈에 띄어야 한다.
+ */
+function ModeBadge({ data }: { data: Listing | null }) {
+  if (!data) return <span className="note">모드 확인 중…</span>;
+  const live = data.mode === 'live';
+  return (
+    <span className="row" style={{ gap: 8, fontSize: 11 }}>
+      <span className="badge" style={{ color: live ? 'var(--warn)' : 'var(--accent)' }}>
+        <i />{live ? 'LIVE' : 'FIXTURE'}
+      </span>
+      <span className="mut">
+        {live
+          ? <>실제 API 를 부른다 · 대상 <span className="ink">{data.allowed_repos.join(', ')}</span></>
+          : '외부 API 를 부르지 않는다 — 스냅샷을 읽는다'}
+      </span>
+      <span className="fnt">OPS_MODE</span>
+    </span>
   );
 }
 

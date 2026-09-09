@@ -12,7 +12,7 @@
 
 | 파일 | 실행 | 무엇을 증명하는가 | 채점 |
 |---|---|---|---|
-| `ui-01-home.png` | — | 시작 화면 — 지난 실행 10건(상태·결과 한 줄·비용) · 픽스처 선택 · 자격증명 출처(구독 로그인). **비용을 모르는 실행은 «확인 못 함»** | 4 |
+| `ui-01-home.png` | — | 시작 화면 — 머리의 **`LIVE`/`FIXTURE` 모드 배지**(D28) · 지난 실행 10건(상태·결과 한 줄·비용) · 자격증명 출처. **비용을 모르는 실행은 «확인 못 함»** | 4 |
 | `ui-02-run-done.png` | `web-mtucmfut` | 완주한 실행 **전체**. 프롬프트 줄 · `[ PROGRESS ]` 6단계 · `[ AXES ]` 4축 실수치 · `[ BUDGET ]` 상한 대비 게이지 · `[ DECIDED BY HUMAN ]` 4건(답변 1 · 승인 1 · 거절 2) · `[ CARDS ]` 7장(근거 대조를 통과한 차트 포함) · `[ TAIL -F ]` 61건 | 2·3·4 |
 | `ui-03-stopped-usage.png` | `demo-stopped` | 종료 조건(`maxToolCalls`) 발동 + **`usage_known: false` → 호박색 «확인 못 함»** + 아는 값(캐시 읽기 58,094) | 3·4 |
 | `ui-04-interrupted.png` | `demo-approval` | 서버 재시작 후 `interrupted`. `--resume` 은 세션이 없어 **비활성**, 걸려 있던 승인은 `[ STALE APPROVAL ] 무효` | 3 |
@@ -48,8 +48,9 @@ $ unzip -t runs/web-mtucmfut/cardnews-web-mtucmfut.zip
 No errors detected in compressed data
 ```
 
-**화면에서 바로 내려받는다** (PRD 1절의 「함께 내려받는다」). `ui-06` 의 `[ CARDS ]` 위에
-`⤓ 내려받기` 줄이 있고, 카드마다 `⤓ png` 가 붙는다.
+**굽기는 사람이 누를 때만** 한다 (D27). `ui-06` 의 `[ CARDS ]` 위에 「카드뉴스 내보내기」
+버튼이 있고, 누른 뒤에야 `⤓ 내려받기` 줄과 **카드 낱장 미리보기**가 생긴다.
+카드마다 `⤓ png` 도 붙는다.
 
 ```
 GET /api/runs/{id}/export/zip       → cardnews-{id}.zip
