@@ -131,6 +131,10 @@ async function main(): Promise<void> {
               break;
           }
           break;
+        case 'hook_denied':
+          console.log(`🚧 훅이 막음 (${e.denial.rule}) — ${e.denial.tool}`);
+          console.log(`   ${e.denial.reason}`);
+          break;
         case 'stopped':
           console.log(`🛑 종료 조건: ${e.reason.limit} — ${e.reason.message}`
             + ` (관측 ${e.reason.observed} / 허용 ${e.reason.allowed})`);
@@ -155,6 +159,10 @@ async function main(): Promise<void> {
   }
   if (result.permissionDenials.length) {
     console.log(`SDK 거절 기록 ${result.permissionDenials.length}건 (승인 게이트가 막은 근거)`);
+  }
+  if (result.hookDenials.length) {
+    console.log(`PreToolUse 훅 거절 ${result.hookDenials.length}건 — `
+      + result.hookDenials.map((d) => d.rule).join(', '));
   }
   console.log(`실행 기록: runs/${runId}/toolcalls.jsonl`);
   console.log(`세션 ID: ${result.sessionId ?? '(없음)'} — 이어가려면 이 값을 저장한다\n`);

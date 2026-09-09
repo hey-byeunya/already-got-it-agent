@@ -73,7 +73,7 @@
 
 ## 4. 루프와 승인 — 채점 2·3번
 
-**구현 완료 (CLI 로 확인 가능).** `cd agent && npm run check` — 검사 30개.
+**구현 완료 (CLI 로 확인 가능).** `cd agent && npm run check` — 검사 52개.
 
 - [x] Agent SDK `query()` 래퍼 — `agent/src/engine.ts` 한 곳에서만 SDK 를 부른다
 - [x] MCP 서버를 `mcpServers` 로 연결 (stdio)
@@ -87,7 +87,8 @@
 - [x] 토큰·비용 집계 — 함정 4개 + `usage_known`
 - [x] CLI 실행기 `agent/src/run.js` — 화면 없이 브리핑 한 편
 - [x] **실제 모델로 브리핑 실행** — `evidence/runs/` 에 기록 3건
-- [ ] `PreToolUse` 훅 (게이트 ③) — 지금은 ①② 두 겹. 훅은 웹앱에서 추가
+- [x] `PreToolUse` 훅 (게이트 ③) — `agent/src/hook.ts`, 검사 13개
+- [ ] 훅이 실제 실행에서 발동하는 것 확인 ← 크레딧 필요 (로직·연결은 검사·타입으로 확인됨)
 - [x] 승인 없이 쓰기 도구가 실행되지 않는지 실제 실행에서 확인 (`gate-deny`)
 - [x] 승인 후 실행 + 되돌리기 (`gate-approve` — #9001 생성→닫힘)
 - [x] 종료 조건 실제 발동 (`cap-stopped` — maxToolCalls)

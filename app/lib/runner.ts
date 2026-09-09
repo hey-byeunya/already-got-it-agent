@@ -114,6 +114,15 @@ export function start(opts: StartOptions): void {
           store.appendTrace(runId, { kind: e.kind,
             label: e.isError ? '도구 결과 — 오류' : '도구 결과', detail: e.preview, isError: e.isError });
           break;
+        case 'hook_denied':
+          store.appendTrace(runId, {
+            kind: 'hook_denied',
+            label: `PreToolUse 훅이 막음 (${e.denial.rule}) — ${e.denial.tool}`,
+            detail: e.denial.reason
+              + '\n\n훅은 모든 단계보다 먼저 돌고, bypassPermissions 에서도 deny 가 유효하다 (게이트 ③).',
+            isError: true,
+          });
+          break;
         case 'gate':
           handleGateEvent(runId, e.event);
           break;

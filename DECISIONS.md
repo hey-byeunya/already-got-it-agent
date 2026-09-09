@@ -58,13 +58,30 @@
 |---|---|---|
 | ① MCP 서버의 `_meta` | 쓰기 도구에 `_meta["anthropic/requiresUserInteraction"]` 선언 | 이게 붙으면 **allow 규칙이 매치돼도 항상 콜백으로 떨어진다.** 게이트가 앱 설정이 아니라 **도구의 성질**이 된다 (Claude Code v2.1.199+) |
 | ② MCP 서버의 `approval_token` 검사 | 유효한 1회용 토큰 없이는 서버가 거절 | 앱을 우회해 서버에 직접 붙어도 막힌다 |
-| ③ `PreToolUse` 훅 | 승인 기록 없는 쓰기 호출을 거부 | 훅은 **모든 단계보다 먼저** 실행되고, 훅의 deny는 `bypassPermissions`에서도 유효하다 |
+| ③ `PreToolUse` 훅 | **설정과 무관한 불변식 두 개**를 검사 (바로 아래) | 훅은 **모든 단계보다 먼저** 실행되고, 훅의 deny는 `bypassPermissions`에서도 유효하다 |
 
 - **추가 규칙**
   - **쓰기 도구를 `allowedTools`에 넣지 않는다.** 읽기 도구 5개만 자동 승인한다.
   - **`permissionMode`는 `default`.** 문서가 잠금 조합으로 권하는 `allowedTools` + `dontAsk`는
     이 앱에 **쓸 수 없다** — `dontAsk`는 `canUseTool`을 절대 호출하지 않아 `AskUserQuestion`(질문
     대기)과 쓰기 도구 승인이 **거부**된다.
+
+**③ 훅이 검사하는 것 — 설정이 어떻든 참이어야 하는 것만**
+
+| 규칙 | 무엇을 막는가 | 왜 훅이어야 하는가 |
+|---|---|---|
+| `tool_not_allowed` | 도메인 도구 7개와 `AskUserQuestion` 밖의 도구 | `disallowedTools`가 잘못 설정되거나 `bypassPermissions`가 켜져도 남는 검사 |
+| `model_supplied_approval_token` | 모델이 보낸 입력에 `approval_token`이 들어 있는 경우 | ①②는 "**유효한** 토큰이면 실행한다"까지만 보장한다. 토큰이 **어디서 왔는지**는 보장하지 않는다 |
+
+두 번째 규칙을 왜 두는가 — 지금은 모델이 토큰을 알 경로가 없다. 하지만 나중에 입력을 되돌려 주는
+도구가 생기거나 실행 로그를 모델에 먹이는 화면이 생기면 그 경로가 열린다. 불변식을 우연에 맡기지
+않고 못 박는다. 토큰은 `canUseTool`이 사람의 승인을 받은 뒤 `updatedInput`으로만 주입한다.
+
+**훅이 하지 않는 것 — "승인 기록이 있는지" 검사.** 훅은 `canUseTool`**보다 먼저** 돌기 때문에
+그 시점에는 아직 승인이 없다. 거기서 막으면 **사람이 묻기도 전에 모든 쓰기가 차단된다.**
+처음 설계(이 문서의 앞 판본)에는 이 검사가 들어 있었고, 구현하면서 순서를 짚어 보다 발견해 뺐다.
+검사(`agent/test/hook.test.ts`)에 경계로 남겼다 — "토큰이 없는 쓰기 호출은 통과시킨다".
+
 - **자체 검사**: `allowedTools`의 맨이름 항목이 콜백을 가리면 SDK가 `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED`
   코드로 Node 경고를 한 번 띄운다. `process.on('warning', ...)`로 잡아 **경고가 뜨면 실패로 처리**한다.
   게이트가 가려진 상태로 넘어가는 것을 코드가 막는다.

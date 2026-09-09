@@ -9,6 +9,7 @@ import { config as mcpConfig } from 'already-got-it-ops-mcp/config';
 import { createGate, type Decider, type GateEvent } from './gate.js';
 import { LimitTracker, limitsFromEnv, type LimitConfig, type StopReason } from './limits.js';
 import { ShadowGuard } from './shadowguard.js';
+import { createPreToolUseHook, type HookDenial } from './hook.js';
 import { systemPrompt } from './prompt.js';
 import { BLOCKED_BUILTINS, MCP_SERVER_KEY, READ_TOOLS, WRITE_TOOLS, shortName } from './tools.js';
 import { UsageAccountant, type UsageSnapshot } from './usage.js';
@@ -17,6 +18,7 @@ export type RunStatus = 'done' | 'stopped' | 'failed';
 
 export type EngineEvent =
   | { kind: 'started'; runId: string; limits: LimitConfig }
+  | { kind: 'hook_denied'; denial: HookDenial }
   | { kind: 'assistant_text'; text: string }
   | { kind: 'tool_use'; tool: string; input: unknown }
   | { kind: 'tool_result'; tool: string; isError: boolean; preview: string }
@@ -35,6 +37,8 @@ export type EngineResult = {
   waitingSeconds: number;
   /** SDK 가 남긴 거절 기록. 승인 게이트가 실제로 막았다는 근거다. */
   permissionDenials: unknown[];
+  /** PreToolUse 훅이 막은 것 (게이트 ③). */
+  hookDenials: HookDenial[];
   finalText: string;
 };
 
@@ -78,6 +82,7 @@ export async function runBriefing(opts: EngineOptions): Promise<EngineResult> {
   let sessionId: string | undefined;
   let finalText = '';
   let permissionDenials: unknown[] = [];
+  const hookDenials: HookDenial[] = [];
   let sawResult = false;
 
   const mcp = opts.mcpServerCommand ?? {
@@ -104,6 +109,16 @@ export async function runBriefing(opts: EngineOptions): Promise<EngineResult> {
         // SDK 가 검사하는 종료 조건 두 개. 나머지 넷은 내가 검사한다.
         maxTurns: limits.maxTurns,
         maxBudgetUsd: limits.maxBudgetUsd,
+
+        // 승인 게이트 ③ — 모든 단계보다 먼저 돌고, bypassPermissions 에서도 deny 가 유효하다.
+        hooks: {
+          PreToolUse: [{
+            hooks: [createPreToolUseHook((d) => {
+              hookDenials.push(d);
+              emit({ kind: 'hook_denied', denial: d });
+            })],
+          }],
+        },
 
         mcpServers: {
           [MCP_SERVER_KEY]: { type: 'stdio', command: mcp.command, args: mcp.args,
@@ -191,6 +206,7 @@ export async function runBriefing(opts: EngineOptions): Promise<EngineResult> {
     elapsedSeconds: Math.round(tracker.elapsedSeconds() * 10) / 10,
     waitingSeconds: Math.round(tracker.waitingSeconds * 10) / 10,
     permissionDenials,
+    hookDenials,
     finalText,
   };
 }
