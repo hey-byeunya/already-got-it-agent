@@ -49,13 +49,20 @@ export function StatusBadge({ status, pendingApproval }: {
   );
 }
 
-export function SectionHead({ label, right, tone = 'ok', hint }: {
-  label: string; right?: React.ReactNode; tone?: Tone; hint?: string;
+/**
+ * 구역 머리글. `label` 은 노드도 받는다 — 머리글 안의 낱말마다 색을 달리 줘야 할 때가 있다
+ * ([ RUNS ] 의 ok·halted·failed 처럼). 그 경우 읽어 줄 글자를 `labelText` 로 따로 준다.
+ */
+export function SectionHead({ label, labelText, right, tone = 'ok', hint }: {
+  label: React.ReactNode; labelText?: string; right?: React.ReactNode; tone?: Tone; hint?: string;
 }) {
+  const text = labelText ?? (typeof label === 'string' ? label : undefined);
   return (
     <div className="spread" style={{ marginBottom: 12 }}>
       <span className="sechead" style={{ color: TONE_VAR[tone] }}
-        {...(hint ? { 'data-tip': hint, 'aria-label': `${label}: ${hint}` } : {})}>{label}</span>
+        {...(hint ? { 'data-tip': hint, 'aria-label': text ? `${text}: ${hint}` : hint } : {})}>
+        {label}
+      </span>
       {right}
     </div>
   );

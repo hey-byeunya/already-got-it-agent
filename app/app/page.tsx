@@ -235,9 +235,17 @@ export default function Home() {
 
           {/* ─────────────────────── [ RUNS ] */}
           <div style={{ minWidth: 0 }}>
-            <SectionHead label={
-              `[ RUNS ] ${runs.length} · ok ${tally.ok} · halted ${tally.halted} · failed ${tally.failed}`
-            } />
+            {/* 셈 세 개에 상태 배지와 같은 색을 준다 - 표를 훑기 전에 결이 먼저 보인다. */}
+            <SectionHead
+              labelText={
+                `[ RUNS ] ${runs.length} · ok ${tally.ok} · halted ${tally.halted} · failed ${tally.failed}`
+              }
+              label={<>
+                {`[ RUNS ] ${runs.length} · `}
+                <span className="ok">ok {tally.ok}</span>{' · '}
+                <span className="wrn">halted {tally.halted}</span>{' · '}
+                <span className="bad">failed {tally.failed}</span>
+              </>} />
 
             {!data && <div className="note">불러오는 중…</div>}
             {data && runs.length === 0 && (
