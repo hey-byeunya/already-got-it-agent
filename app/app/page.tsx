@@ -393,10 +393,13 @@ export default function Home() {
             <div className="note" style={{ margin: '14px 0 6px' }}>
               --fixture{live && <span className="fnt"> · live 모드에서는 쓰지 않는다</span>}
             </div>
-            <select value={fixture} disabled={live} onChange={(e) => setFixture(e.target.value)}>
-              {(data?.fixtures ?? []).map((f) => (
-                <option key={f.id} value={f.id}>{f.id} — {f.label}</option>
-              ))}
+            {/* live 에서는 고른 값을 그대로 두지 않는다 — 보내지 않을 값을 골라 둔 것처럼 보인다. */}
+            <select value={live ? '' : fixture} disabled={live} onChange={(e) => setFixture(e.target.value)}>
+              {live
+                ? <option value="">— live 에서는 픽스처를 쓰지 않는다</option>
+                : (data?.fixtures ?? []).map((f) => (
+                  <option key={f.id} value={f.id}>{f.id} — {f.label}</option>
+                ))}
             </select>
             <div className="note" style={{ marginTop: 9 }}>
               {lim && <>limits: iter {lim.maxTurns} · tool {lim.maxToolCalls} · ${lim.maxBudgetUsd} · {lim.maxElapsedSeconds}s<br /></>}
@@ -408,6 +411,11 @@ export default function Home() {
             {/* PRESETS */}
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
               <SectionHead label="[ PRESETS ]" />
+              {live && (
+                <div className="note fnt" style={{ marginBottom: 8 }}>
+                  live 에서는 <span className="ink">--axis</span> 만 적용된다 — 픽스처 이름은 설명일 뿐이다
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 11.5 }}>
                 {PRESETS.map((p) => (
                   <div key={p.fixture} style={{
