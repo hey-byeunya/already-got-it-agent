@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.env
+.env.local
+.env*.local
+/runs/
+*.log
+.DS_Store
+evidence/runs/*.zip
