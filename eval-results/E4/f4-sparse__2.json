@@ -1,0 +1,42 @@
+{
+  "variant": "E4",
+  "fixture_id": "f4-sparse",
+  "attempt": 2,
+  "run_id": "eval-E4-f4-sparse-2",
+  "started_at": "2026-09-09T11:54:12.238Z",
+  "finished_at": "2026-09-09T11:56:53.119Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 8,
+  "elapsed_seconds": 160.9,
+  "usage_known": true,
+  "total_cost_usd": 0.2411878,
+  "input_tokens": 8,
+  "output_tokens": 13780,
+  "credential_source": "stored_login",
+  "prompt_variant": "no_fact_classes",
+  "permission_denials": 0,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f4-sparse",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [
+      "series[2026-09-04..2026-09-08]"
+    ],
+    "must_include": [],
+    "must_include_auto_judgeable": 0,
+    "must_include_satisfied": 0,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 1484,
+  "final_text": "## 「이미 있어」 주간 운영 브리핑 — 2026-09-02 ~ 2026-09-09\n\n먼저 스토리보드부터 정리했다. 이번 주는 **3개 축 모두 자료가 상당히 비어 있어서**, 억지로 5~8장을 채우지 않고 확인된 것과 확인 못한 것을 그대로 나눴다. 카드는 4장이다.\n\n---\n\n### 카드 1 — [지금 손봐야 할 것] 이번 주 시스템 상태는 \"문제없음\"이 아니라 \"확인 불가\"\n- 배포: **0건** (성공 0 · 실패 0) — 이번 주엔 배포 자체가 없었다.\n- 함수 오류 수: **조회 실패** (`unavailable_fields: function_errors.count`) — 0건이라는 뜻이 아니라 값을 못 가져왔다는 뜻.\n- → 확인된 배포 실패나 오류율 상승은 없지만, 오류 지표를 아예 못 봤으므로 \"이상 없음\"이라 단정하지 않는다.\n\n### 카드 2 — [지켜볼 것] 사용자 활동, 7일 중 2일만 확인됨\n- `series`에 **09-04~09-08(5일) 누락**. 확인된 09-02~09-03 이틀 기준: 가입 1명, 신규 있템(owned) 8개, 위시 1개, (중복 제외) 활성 사용자 5명.\n- 이 수치는 \"이번 주 전체 합계\"가 아니라 **확인된 이틀치 합계**다 — `totals`라는 이름과 달리 나머지 5일은 반영 안 됨.\n- `previous_period_totals`도 없어 전주 대비 증감은 말할 수 없음.\n- 차트(card_no 2, `charts/02.svg`, source: `get_user_metrics.series[].active_users`): 09-02=4명 → 09-03=3명. 절반도 안 되는 스냅샷이라 추세로 읽지 말 것.\n\n### 카드 3 — [지켜볼 것] 개발 활동은 이번 주 아예 못 봤다\n- `get_dev_activity` 호출이 **GitHub API 레이트리밋**으로 전부 실패 (재시도 가능까지 약 18분).\n- 이슈/커밋/PR 상태 모두 이번 브리핑에 반영 못함 — 다음 브리핑에서 다시 확인 필요.\n\n### 카드 4 — [알아둘 것] 의존성 관련 특이사항 없음\n- next 16.2.x, react 19.2.x, @supabase/ssr·supabase-js, tailwindcss 4.x, typescript 5.x, vitest — 4건 검색 모두 결과 0건.\n- 이번 주 실제로 이 앱에 해당하는 릴리스노트·보안 권고는 없음.\n\n---\n\n**이슈 생성 관련**: `create_github_issue`를 호출하지 않았다. 이번 주 확정된 제품 버그·오류율 상승·막힌 흐름이 없었고, 비어 있는 항목(함수 오류 지표 조회 실패, 개발 활동 조회 실패)은 앱 코드의 문제가 아니라 모니터링/조회 쪽 공백이라 레포 이슈로 남길 근거가 부족하다고 판단했다. 다음 주에 같은 공백(특히 `function_errors` 미조회)이 반복되면 그때는 모니터링 연동 자체를 이슈로 남기는 걸 제안하겠다.\n\n추가로 반영하고 싶은 카드나 다른 기간으로 다시 돌려볼 부분 있으면 말해줘."
+}
