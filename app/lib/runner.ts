@@ -193,6 +193,7 @@ export function start(opts: StartOptions): void {
         s.usage = result.usage;
         s.session_id = result.sessionId;
         s.final_text = result.finalText;
+        s.elapsed_seconds = result.elapsedSeconds;
         if (result.stopReason) s.stop_reason = result.stopReason;
         s.charts = collectCharts(runId);
       });

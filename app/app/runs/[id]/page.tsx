@@ -188,8 +188,11 @@ function ExportBar({ runId, ex, cardCount, exporting, busy, onExport, onPreview 
     <button className={made ? undefined : 'go'}
       disabled={busy || exporting || cardCount === 0}
       onClick={onExport}
-      title={cardCount === 0 ? '내보낼 카드가 없다' : ''}>
-      {exporting ? '굽는 중…' : made ? '다시 내보내기' : `카드뉴스 내보내기 (${cardCount}장)`}
+      title={cardCount === 0
+        ? '내보낼 카드가 없다'
+        : made ? '카드를 PNG 로 다시 굽고 ZIP 을 새로 만든다'
+          : `카드 ${cardCount}장을 PNG · ZIP · 근거 기록으로 내보낸다`}>
+      {exporting ? 'exporting…' : made ? '--rebuild' : `--export ${cardCount}`}
     </button>
   );
 
@@ -200,7 +203,7 @@ function ExportBar({ runId, ex, cardCount, exporting, busy, onExport, onPreview 
         <span className="note">
           {cardCount === 0
             ? '카드가 아직 없다. 카드를 만들면 여기서 PNG · ZIP · 근거 기록을 만든다.'
-            : '누르면 카드를 PNG 로 굽고 ZIP 으로 묶는다. 그 뒤에 내려받을 수 있다.'}
+            : `카드 ${cardCount}장을 PNG 로 굽고 ZIP 으로 묶는다. 그 뒤에 내려받을 수 있다.`}
         </span>
       </div>
     );
@@ -210,11 +213,13 @@ function ExportBar({ runId, ex, cardCount, exporting, busy, onExport, onPreview 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div className="row" style={{ gap: 12 }}>
         {button}
-        {stale && (
-          <span className="note wrn">
-            카드 {cardCount}장 중 {ex.png.length}장만 구워져 있다 — 다시 내보낸다
-          </span>
-        )}
+        {stale
+          ? (
+            <span className="note wrn">
+              카드 {cardCount}장 중 {ex.png.length}장만 구워져 있다 — 다시 굽는다
+            </span>
+          )
+          : <span className="note">카드를 고쳤으면 다시 굽는다</span>}
       </div>
       <div className="note" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'baseline' }}>
         <span className="ok">⤓ 내려받기</span>
@@ -389,7 +394,10 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
   const dead = !s.live;
   const askable = Boolean(s.pending_question) && s.live;
   const approvable = Boolean(s.pending_approval) && s.live;
-  const elapsed = (Date.parse(s.updated_at) - Date.parse(s.created_at)) / 1000;
+  // 엔진이 잰 값이 있으면 그것을 쓴다. updated_at 은 실행이 끝난 뒤에도
+  // 카드 내보내기 같은 작업으로 갱신돼, 끝난 실행의 경과 시간이 계속 늘어난다.
+  const elapsed = s.elapsed_seconds
+    ?? (Date.parse(s.updated_at) - Date.parse(s.created_at)) / 1000;
   const toolCalls = s.trace.filter((e) => e.kind === 'tool_use').length;
   const u = s.usage;
   // 상한이 재는 것은 «캐시 읽기를 뺀» 입력이다 (agent/src/usage.ts 의 freshInputTokens).

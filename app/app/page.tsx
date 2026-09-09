@@ -312,15 +312,21 @@ export default function Home() {
 
             <div className="note" style={{ marginBottom: 6 }}>--since / --until</div>
             <div className="row" style={{ gap: 6, marginBottom: 8 }}>
-              {([['7d', '최근 1주일'], ['15d', '최근 15일'], ['custom', '직접 선택']] as const)
-                .map(([k, label]) => (
-                  <button className="seg" key={k} aria-pressed={range === k} onClick={() => setRange(k)}>
-                    {label}
+              {/*
+                --engine 의 claude/opencode 처럼 **값**으로 적는다.
+                디자인에서 버튼에 붙는 한글은 설명이지 이름이 아니다.
+              */}
+              {([['7d', '최근 1주일'], ['15d', '최근 15일'], ['custom', '날짜를 직접 고른다']] as const)
+                .map(([k, hint]) => (
+                  <button className="seg" key={k} aria-pressed={range === k}
+                    title={hint} onClick={() => setRange(k)}>
+                    {k}
                   </button>
                 ))}
             </div>
             {range === 'custom' ? (
-              <div className="row" style={{ gap: 6, marginBottom: 14, flexWrap: 'nowrap' }}>
+              <div className="row" style={{ gap: 6, marginBottom: 14, flexWrap: 'nowrap' }}
+                title="브리핑이 다룰 기간을 직접 고른다">
                 <input type="date" value={since} max={until}
                   onChange={(e) => setSince(e.target.value)} style={{ flex: 1 }} />
                 <span className="fnt">~</span>
@@ -329,6 +335,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="note" style={{ marginBottom: 14 }}>
+                최근 {range === '7d' ? '1주일' : '15일'} ·{' '}
                 {range === '7d' ? daysAgo(7) : daysAgo(15)} ~ {iso(new Date())}
                 <span className="fnt"> · 시작할 때 다시 계산한다</span>
               </div>

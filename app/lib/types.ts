@@ -82,6 +82,13 @@ export type RunState = {
   period?: { since: string; until: string };
   /** 지금 카드뉴스를 굽고 있는가. 두 번 눌러 두 번 굽지 않게 한다. */
   cards_exporting?: boolean;
+  /**
+   * 엔진이 잰 실행 시간(초). 대기 시간은 빠져 있다.
+   *
+   * created_at → updated_at 으로 계산하면 안 된다 — updated_at 은 실행이 끝난 뒤에도
+   * 카드 내보내기 같은 작업으로 갱신돼, 600초에 끝난 실행이 «4,970s / 600s 상한» 으로 보인다.
+   */
+  elapsed_seconds?: number;
 };
 
 export type RunLimits = {
