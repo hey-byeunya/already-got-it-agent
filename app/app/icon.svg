@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- 터미널 화면. globals.css 의 --panel / --accent 와 같은 색이다. -->
+  <rect width="64" height="64" fill="#0a0d0c"/>
+  <rect x="0" y="0" width="64" height="4" fill="#4ee08a"/>
+  <!-- 프롬프트 «>» -->
+  <path d="M14 22 L28 32 L14 42" fill="none" stroke="#4ee08a"
+        stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+  <!-- 커서 «_» -->
+  <rect x="33" y="38" width="18" height="6" fill="#4ee08a"/>
+</svg>

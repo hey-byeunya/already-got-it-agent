@@ -22,6 +22,8 @@ type Conflict = { code: string; message: string };
 
 const POLL_MS = 1200;
 const NARROW = 1080;
+/** 로그 한 쪽에 담는 줄 수. 실행 하나가 60줄을 넘기니 전부 펼치면 스크롤이 감당이 안 된다. */
+const LOG_PAGE = 20;
 
 /** 트레이스 kind → 글리프와 색. kind 는 원래 저장되는데 전에는 화면이 버렸다. */
 function glyph(e: TraceEvent): { mark: string; cls: string; group: 'tool' | 'think' | 'err' } {
@@ -68,6 +70,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
   const [meter, setMeter] = useState<'budget' | 'usage'>('budget');
   const [gate, setGate] = useState(false);
   const [filter, setFilter] = useState<'all' | 'tool' | 'think' | 'err'>('all');
+  const [page, setPage] = useState(0);
   const [narrow, setNarrow] = useState(false);
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -122,10 +125,17 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
     await poll();
   }
 
+  // 최신이 위로 온다. 실행이 길어지면 방금 무슨 일이 있었는지가 먼저 보여야 한다.
   const shown = useMemo(
-    () => (s ? s.trace.filter((e) => filter === 'all' || glyph(e).group === filter) : []),
+    () => (s
+      ? s.trace.filter((e) => filter === 'all' || glyph(e).group === filter).reverse()
+      : []),
     [s, filter],
   );
+  const pageCount = Math.max(1, Math.ceil(shown.length / LOG_PAGE));
+  // 거르고 나서 쪽이 줄면 빈 쪽에 남을 수 있다. 그때는 마지막 쪽으로 당긴다.
+  const safePage = Math.min(page, pageCount - 1);
+  const pageItems = shown.slice(safePage * LOG_PAGE, safePage * LOG_PAGE + LOG_PAGE);
   const counts = useMemo(() => {
     const c = { tool: 0, think: 0, err: 0 };
     for (const e of s?.trace ?? []) c[glyph(e).group] += 1;
@@ -567,22 +577,27 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
           {showLog && (
             <div className="log">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, marginBottom: 12 }}>
-                <span className="sechead">[ TAIL -F ] {s.trace.length}</span>
+                <span className="sechead">
+                  [ TAIL -F ] {s.trace.length} <span className="mut">· 최신순</span>
+                </span>
                 <span className={dead ? 'mut' : 'ok'}>
                   {dead ? '○ poll 정지 — 끝난 실행은 더 두드리지 않는다' : `● poll ${POLL_MS / 1000}s`}
                 </span>
               </div>
               <div className="row" style={{ gap: 5, marginBottom: 12 }}>
                 {(['all', 'tool', 'think', 'err'] as const).map((f) => (
-                  <button className="chip" key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}
+                  <button className="chip" key={f} aria-pressed={filter === f}
+                    onClick={() => { setFilter(f); setPage(0); }}
                     style={f === 'err' && counts.err > 0
                       ? { borderColor: 'rgba(226,96,75,.45)', color: 'var(--danger-ink)' } : undefined}>
                     {f}{f === 'all' ? '' : ` ${counts[f]}`}
                   </button>
                 ))}
               </div>
+              {/* 최신이 위라서 프롬프트도 위에 둔다 — 커서가 가장 최근 줄 바로 앞에 온다. */}
+              <div className="ok" style={{ paddingBottom: 9 }}>➜{!dead && <Cursor />}</div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {shown.map((e) => {
+                {pageItems.map((e) => {
                   const g = glyph(e);
                   return (
                     <div className="line" key={e.seq}>
@@ -601,8 +616,21 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   );
                 })}
                 {shown.length === 0 && <div className="note">이 갈래에 해당하는 기록이 없다.</div>}
-                <div style={{ padding: '9px 0 0' }} className="ok">➜{!dead && <Cursor />}</div>
               </div>
+
+              {shown.length > LOG_PAGE && (
+                <div className="spread" style={{ marginTop: 12, alignItems: 'center' }}>
+                  <button className="chip" disabled={safePage === 0}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}>‹ newer</button>
+                  <span className="note">
+                    {safePage * LOG_PAGE + 1}–{safePage * LOG_PAGE + pageItems.length}
+                    {' / '}{shown.length}
+                    <span className="fnt"> · {safePage + 1}/{pageCount}</span>
+                  </span>
+                  <button className="chip" disabled={safePage >= pageCount - 1}
+                    onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}>older ›</button>
+                </div>
+              )}
             </div>
           )}
         </div>

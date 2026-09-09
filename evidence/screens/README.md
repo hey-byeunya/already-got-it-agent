@@ -17,9 +17,29 @@
 | `ui-03-stopped-usage.png` | `demo-stopped` | 종료 조건(`maxToolCalls`) 발동 + **`usage_known: false` → 호박색 «확인 못 함»** + 아는 값(캐시 읽기 58,094) | 3·4 |
 | `ui-04-interrupted.png` | `demo-approval` | 서버 재시작 후 `interrupted`. `--resume` 은 세션이 없어 **비활성**, 걸려 있던 승인은 `[ STALE APPROVAL ] 무효` | 3 |
 | `ui-05-empty-run.png` | `web-mtuaihxp` | 도구를 부르기 전에 실패한 실행. 네 축·카드·상한이 전부 없어도 **깨지지 않고 «없다»고 말한다** | 4 |
+| `ui-06-cardnews-screen.png` | `web-mtucmfut` | **카드뉴스 제작 화면** — `[ CARDS ] 7` 전체. 로그 열이 접히는 1000px 폭이라 카드가 한 장씩 다 보인다. 카드마다 심각도 딱지·근거 줄이 붙어 있다 | 결과물 |
+| `ui-07-cardnews-output.png` | `web-mtucmfut` | **내보낸 결과물** — `cardnews-web-mtucmfut.zip` 안의 PNG 7장(1080×1350)을 펼쳐 놓은 대지. 파일명·심각도·제목을 함께 적었다 | 결과물 |
 
 `ui-02` 한 장 안에 승인·거절·질문 답변이 모두 들어 있다 — 실행 하나를 끝까지 돌려 찍었기 때문이다.
 살아 있는 승인·질문 게이트(누를 수 있는 상태)는 그 실행 도중에 확인했고, 결과가 `[ DECIDED BY HUMAN ]` 에 남았다.
+
+### 카드뉴스 결과물 (`ui-06` · `ui-07`)
+
+`ui-07` 은 화면이 아니라 **실제로 내보낸 파일**이다. 같은 실행에서 나온 것들:
+
+```
+runs/web-mtucmfut/cardnews-web-mtucmfut.zip   466,772B
+  cards/01.png ~ 07.png                       각 1080×1350
+  SOURCES.md                                  카드별 근거 표
+```
+
+```
+$ unzip -t runs/web-mtucmfut/cardnews-web-mtucmfut.zip
+No errors detected in compressed data
+```
+
+ZIP 과 PNG 원본은 저장소에 넣지 않는다 (`.gitignore` 의 `evidence/cardnews/`) —
+용량이 크고, **캡처와 `SOURCES.md` 로 충분히 증명된다.** 다시 만들려면 아래 「다시 찍는 법」 대로 실행한다.
 
 ### 아직 손으로 남겨야 하는 것
 
@@ -52,6 +72,9 @@ npm --prefix app run dev          # http://localhost:3010
 
 ```bash
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --headless=new --disable-gpu --hide-scrollbars --window-size=1440,4290 \
+  --headless=new --disable-gpu --hide-scrollbars --window-size=1440,3060 \
   --virtual-time-budget=7000 --screenshot=out.png http://localhost:3010/runs/<run-id>
 ```
+
+카드뉴스 결과물 대지(`ui-07`)는 내보낸 PNG 를 한곳에 모아 놓고 같은 방법으로 찍는다.
+카드는 `compose_card` → `export_cardnews` 가 만든다 — 화면에서 브리핑을 한 번 돌리면 나온다.
