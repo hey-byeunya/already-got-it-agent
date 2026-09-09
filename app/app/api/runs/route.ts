@@ -53,10 +53,15 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  */
 function resolvePeriod(body: { since?: unknown; until?: unknown }):
   { period: { since: string; until: string }; note: string | null } {
+  // 화면과 같은 규칙으로 자른다 — toISOString() 은 UTC 라 한국 아침에 하루가 밀린다.
+  const day = (d: Date) => {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
   const fallback = () => {
     const until = new Date();
     const since = new Date(until.getTime() - 7 * DAY);
-    return { since: since.toISOString().slice(0, 10), until: until.toISOString().slice(0, 10) };
+    return { since: day(since), until: day(until) };
   };
   const a = typeof body.since === 'string' ? body.since.trim() : '';
   const b = typeof body.until === 'string' ? body.until.trim() : '';

@@ -27,7 +27,16 @@ type Listing = {
 type Range = '7d' | '15d' | 'custom';
 
 const DAY = 86_400_000;
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+/**
+ * 달력 날짜. **현지 기준이다.**
+ *
+ * toISOString() 은 UTC 로 자른다 — 한국에서 아침에 열면 어제 날짜가 나왔다.
+ * 사람이 고르는 것은 자기 달력의 날짜이므로 현지 기준으로 만든다.
+ */
+const iso = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
 const daysAgo = (n: number) => iso(new Date(Date.now() - n * DAY));
 
 /** 목록에 쓰는 짧은 시각. 초까지는 필요 없다. */

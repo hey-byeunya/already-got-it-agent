@@ -101,6 +101,21 @@ function webSourcesFor(card: CardView, links: RunLinks): RunLinks['web'] {
 
 const kb = (b: number) => `${Math.round(b / 1024).toLocaleString()}KB`;
 
+/**
+ * 로그 한 줄의 시각. **현지 시각으로 고친다.**
+ *
+ * 기록은 ISO UTC 로 남는다. 예전에는 그 문자열을 그대로 잘라 썼는데(`slice(11,19)`),
+ * 같은 화면의 created 는 현지 시각이라 두 값이 9시간 어긋나 보였다.
+ * 저장은 UTC 로 두고 — 기계끼리 견줄 값이다 — 읽는 자리에서만 고친다.
+ */
+function hhmmss(v: string): string {
+  const t = Date.parse(v);
+  if (!Number.isFinite(t)) return v.slice(11, 19);
+  const d = new Date(t);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 /** 사람이 읽을 시각. 초는 버린다. */
 function stamp(v: string): string {
   const t = Date.parse(v);
@@ -906,7 +921,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   const g = glyph(e);
                   return (
                     <div className="line" key={e.seq}>
-                      <span className="when">{e.at.slice(11, 19)}</span>
+                      <span className="when">{hhmmss(e.at)}</span>
                       <span className={g.cls}>{g.mark}</span>
                       <div style={{ minWidth: 0 }}>
                         <span className={e.isError ? 'bad' : 'ink'}>{e.label}</span>
