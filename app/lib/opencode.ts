@@ -20,6 +20,8 @@ import * as store from './store';
 import { parseOpencodeLine } from './opencode-events';
 
 const OPENCODE_TIMEOUT_MS = 20 * 60 * 1000;
+/** 첫 줄이 이 안에 안 오면 끊는다. 정상 실행은 실측 1~2초에 첫 줄이 나온다. */
+const OPENCODE_FIRST_LINE_MS = 90 * 1000;
 
 function opencodeBin(): string {
   return process.env.OPS_OPENCODE_BIN?.trim() || 'opencode';
@@ -111,6 +113,7 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   // execFile 이 끊으면 close 에는 SIGTERM 만 남아, 상한에 걸린 것인지 밖에서 죽인 것인지
   // 화면이 구별하지 못한다 — 실제로 「종료 코드 null (시그널 SIGTERM)」만 적혀 원인을 못 찾았다.
   let killedByTimeout = false;
+  let killedBySilence = false;
   let sawAnyLine = false;
 
   // 콜백은 비워 둔다 — 결과는 'close'·'error' 이벤트로 받는다. 콜백 없이 부르면 타입이 안 맞는다.
@@ -119,6 +122,14 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   }, () => {});
   const deadline = setTimeout(() => { killedByTimeout = true; child.kill('SIGTERM'); },
     OPENCODE_TIMEOUT_MS);
+  // 첫 줄 감시. opencode 는 부트스트랩(설정·MCP·프로바이더 목록)이 막히면
+  // 아무것도 내놓지 않고 그대로 서 있는다 — 실측으로 20분 상한까지 0줄이었다.
+  // 그 20분을 잠자코 기다릴 이유가 없다. 첫 줄이 안 오면 일찍 끊고 그렇다고 말한다.
+  const silence = setTimeout(() => {
+    if (sawAnyLine) return;
+    killedBySilence = true;
+    child.kill('SIGTERM');
+  }, OPENCODE_FIRST_LINE_MS);
   let stdout = '';
   child.stdout?.on('data', (chunk: Buffer | string) => {
     stdout += String(chunk);
@@ -151,7 +162,7 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   });
 
   child.on('error', (err) => {
-    clearTimeout(deadline);
+    clearTimeout(deadline); clearTimeout(silence);
     store.update(runId, (s) => {
       s.status = 'failed';
       s.trace.push({ seq: s.trace.length + 1, at: new Date().toISOString(), kind: 'error',
@@ -161,7 +172,7 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   });
 
   child.on('close', (code, signal) => {
-    clearTimeout(deadline);
+    clearTimeout(deadline); clearTimeout(silence);
     store.update(runId, (s) => {
       if (code === 0 && errors.length === 0) {
         s.status = 'done';
@@ -169,10 +180,13 @@ export function startOpencode(opts: OpencodeStartOptions): void {
         s.status = 'failed';
         s.trace.push({ seq: s.trace.length + 1, at: new Date().toISOString(), kind: 'error',
           label: '실행 실패',
-          detail: (killedByTimeout
+          detail: (killedBySilence
+            ? `${OPENCODE_FIRST_LINE_MS / 1000}초 동안 opencode 가 한 줄도 내놓지 않아 끊었다.`
+              + ' 세션을 열기 전에 멈춰 선 것이다 — 모델·인증을 opencode 쪽에서 먼저 본다'
+              + ' (opencode auth list). 무슨 자리에서 섰는지는 opencode 로그에 남는다:'
+              + ' ~/.local/share/opencode/log/opencode.log'
+            : killedByTimeout
             ? `${OPENCODE_TIMEOUT_MS / 60000}분 상한에서 끊었다 (SIGTERM)`
-              + (sawAnyLine ? '' : ' — opencode 가 그동안 한 줄도 내놓지 않았다.'
-                + ' 모델·인증이 준비됐는지 opencode 쪽에서 먼저 본다: opencode auth list')
             : `종료 코드 ${code}${signal ? ` (시그널 ${signal})` : ''}`)
             + (errors.length ? `\n${errors.join('\n')}` : ''),
           isError: true });

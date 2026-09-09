@@ -48,6 +48,43 @@ test('live 모드 불변식', async (t) => {
     }));
   });
 
+  // 관측한 문제: .env.local 에 남은 OPS_FIXTURE_ID 가 부모 프로세스를 거쳐
+  // 자식 MCP 서버까지 흘러들었다. 부르는 쪽에서 «안 넘긴다» 만으로는 막히지 않는다.
+  t.test('live 에서는 환경변수 OPS_FIXTURE_ID 도 무시한다 — 새어 들어와도 통하지 않는다', () => {
+    const prev = process.env.OPS_FIXTURE_ID;
+    process.env.OPS_FIXTURE_ID = 'f2-deploy-fail';
+    try {
+      withTempRuns(() => withMode('live', () => {
+        const meta = runlog.openRun('r-leak');
+        assert.equal(meta.mode, 'live');
+        assert.equal(meta.fixture_id, null);
+      }));
+      // 경계: fixture 모드에서는 같은 환경변수가 기본값으로 살아 있어야 한다.
+      withTempRuns(() => withMode('fixture', () => {
+        assert.equal(runlog.openRun('r-leak-fx').fixture_id, 'f2-deploy-fail');
+      }));
+    } finally {
+      if (prev === undefined) delete process.env.OPS_FIXTURE_ID;
+      else process.env.OPS_FIXTURE_ID = prev;
+    }
+  });
+
+  t.test('빈 OPS_FIXTURE_ID 는 「없음」으로 본다 — 지우려다 «=» 만 남기는 일이 흔하다', () => {
+    const prev = process.env.OPS_FIXTURE_ID;
+    process.env.OPS_FIXTURE_ID = '';
+    try {
+      withTempRuns(() => withMode('fixture', () => {
+        assert.throws(
+          () => runlog.openRun('r-empty'),
+          (e: any) => e.code === 'fixture_required',
+        );
+      }));
+    } finally {
+      if (prev === undefined) delete process.env.OPS_FIXTURE_ID;
+      else process.env.OPS_FIXTURE_ID = prev;
+    }
+  });
+
   t.test('경계 — fixture 모드에서는 fixture_id 가 정상이다', () => {
     withTempRuns(() => withMode('fixture', () => {
       const meta = runlog.openRun('r-fx', 'f1-normal');

@@ -32,8 +32,19 @@ export const config = {
   get runsDir(): string { return resolve(process.env.OPS_RUNS_DIR ?? 'runs'); },
   /** 평가용 스냅샷 위치. */
   get fixturesDir(): string { return resolve(process.env.OPS_FIXTURES_DIR ?? '../fixtures/snapshots'); },
-  /** run 에 픽스처가 지정되지 않았을 때 쓰는 기본값. */
-  get defaultFixtureId(): string | null { return process.env.OPS_FIXTURE_ID ?? null; },
+  /**
+   * run 에 픽스처가 지정되지 않았을 때 쓰는 기본값.
+   *
+   * **live 에서는 언제나 null 이다.** 환경변수는 여러 곳에서 새어 들어온다 —
+   * .env.local 에 남은 OPS_FIXTURE_ID 가 부모 프로세스를 거쳐 여기까지 온 적이 있다.
+   * 부르는 쪽에서 안 넘기는 것만으로는 부족해서, 읽는 자리에서 막는다.
+   * 빈 문자열도 「없음」으로 본다 — 지우려다 «OPS_FIXTURE_ID=» 로 남기는 일이 흔하다.
+   */
+  get defaultFixtureId(): string | null {
+    if (readMode() === 'live') return null;
+    const raw = (process.env.OPS_FIXTURE_ID ?? '').trim();
+    return raw || null;
+  },
   /** 허용 저장소 목록. 이 목록 밖의 repo 는 도구가 거절한다 (권한 최소화). */
   get allowedRepos(): string[] {
     return csv(process.env.GITHUB_ALLOWED_REPOS, 'hey-byeunya/already-got-it');
