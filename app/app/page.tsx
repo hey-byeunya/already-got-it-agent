@@ -27,6 +27,8 @@ type Listing = {
 type Range = '7d' | '15d' | 'custom';
 
 const DAY = 86_400_000;
+/** 목록 한 쪽에 보일 실행 수. 로그 열(20)보다 적게 잡는다 — 행이 세 줄짜리다. */
+const RUNS_PAGE = 10;
 /**
  * 달력 날짜. **현지 기준이다.**
  *
@@ -92,6 +94,7 @@ export default function Home() {
   const [until, setUntil] = useState(iso(new Date()));
   /** 두 번 눌러야 지운다. 첫 번째 누름을 여기 담아 둔다. */
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [narrow, setNarrow] = useState(false);
@@ -203,6 +206,11 @@ export default function Home() {
     halted: runs.filter((r) => r.status === 'stopped' || r.status === 'interrupted').length,
     failed: runs.filter((r) => r.status === 'failed').length,
   };
+  // 지우거나 새 실행이 생겨 목록이 짧아지면 빈 쪽에 머무를 수 있다. 마지막 쪽으로 당긴다.
+  const pageCount = Math.max(1, Math.ceil(runs.length / RUNS_PAGE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRuns = runs.slice(safePage * RUNS_PAGE, safePage * RUNS_PAGE + RUNS_PAGE);
+
   // 삭제는 제 열을 갖는다 — 비용 아래에 얹으면 어느 쪽 숫자인지 헷갈린다.
   const rowCols = narrow ? 'minmax(0,1fr) auto' : '190px 168px minmax(0,1fr) 88px 62px';
   const lim = data?.limits;
@@ -264,7 +272,7 @@ export default function Home() {
               </div>
             )}
 
-            {runs.map((r) => {
+            {pageRuns.map((r) => {
               const cost = (
                 <span className={r.cost === null ? 'wrn' : 'mut'}>
                   {r.cost === null ? '확인 못 함' : `$${r.cost.toFixed(2)}`}
@@ -323,6 +331,20 @@ export default function Home() {
                 </div>
               );
             })}
+
+            {runs.length > RUNS_PAGE && (
+              <div className="spread" style={{ marginTop: 12, alignItems: 'center' }}>
+                <button className="chip" disabled={safePage === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}>‹ newer</button>
+                <span className="note">
+                  {safePage * RUNS_PAGE + 1}-{safePage * RUNS_PAGE + pageRuns.length}
+                  {' / '}{runs.length}
+                  <span className="fnt"> · {safePage + 1}/{pageCount}</span>
+                </span>
+                <button className="chip" disabled={safePage >= pageCount - 1}
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}>older ›</button>
+              </div>
+            )}
           </div>
 
           {/* ─────────────────────── 사이드바 */}
