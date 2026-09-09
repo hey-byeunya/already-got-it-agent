@@ -184,6 +184,11 @@ button.opt .d {
   display: block; font-family: var(--sans); font-size: 12px; line-height: 1.7;
   color: var(--muted); margin-top: 4px;
 }
+/* 고른 것. 아직 보내지 않았다 - 보내기 전까지는 되돌릴 수 있다. */
+button.opt[aria-pressed='true'] {
+  border-color: var(--accent); background: var(--seg);
+}
+button.opt[aria-pressed='true'] .l { color: var(--accent); }
 
 /* ─────────────────────────────────────────── 입력 */
 

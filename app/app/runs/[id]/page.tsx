@@ -16,7 +16,7 @@ import Link from 'next/link';
 import {
   Bar, Cursor, Gauge, Lights, SectionHead, StatusBadge, TERMINAL_STATUSES, clock,
 } from '@/components/term';
-import type { CardView, ExportView, RunDetail, RunLinks, Step, TraceEvent } from '@/lib/types';
+import type { CardView, ExportView, PendingQuestion, RunDetail, RunLinks, Step, TraceEvent } from '@/lib/types';
 
 type Conflict = { code: string; message: string };
 
@@ -123,6 +123,85 @@ function stamp(v: string): string {
   const d = new Date(t);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * 질문 게이트.
+ *
+ * **한 번에 다 고른 뒤 한 번만 보낸다.** 전에는 선택지 버튼이 저마다 바로 보냈다 -
+ * 질문이 둘 이상인 묶음에서 하나를 누르면 그 자리에서 ask_user 가 닫혀,
+ * 나머지 질문은 사람이 고르지도 않았는데 답 없이 넘어갔다 (실측: web-mtuqs7tv).
+ * 고르는 동안에는 아무것도 보내지 않으므로 누른 것을 다시 바꿀 수 있다.
+ *
+ * 고른 값은 question_id+version 에 묶는다. 에이전트가 질문을 새로 내면 (버전이 오르면)
+ * 앞서 고른 것은 버린다 - 다른 질문에 대한 답이 딸려 들어가면 안 된다.
+ */
+function QuestionGate({ q, busy, onSubmit }: {
+  q: PendingQuestion; busy: boolean; onSubmit: (answers: Record<string, string>) => void;
+}) {
+  const key = `${q.question_id} v${q.version}`;
+  const [picked, setPicked] = useState<{ key: string; by: Record<string, string[]> }>(
+    { key, by: {} },
+  );
+  const by = picked.key === key ? picked.by : {};
+  const set = (question: string, label: string, multi: boolean) => {
+    const cur = by[question] ?? [];
+    const next = multi
+      ? (cur.includes(label) ? cur.filter((x) => x !== label) : [...cur, label])
+      : (cur[0] === label ? [] : [label]);
+    setPicked({ key, by: { ...by, [question]: next } });
+  };
+  const missing = q.questions.filter((x) => (by[x.question] ?? []).length === 0).length;
+
+  return (
+    <div className="strip warn">
+      <div className="spread" style={{ flexWrap: 'wrap' }}>
+        <div>
+          <span className="wrn">?</span> <b>질문 대기</b>{' '}
+          <span className="mut">ask_user · {q.question_id} v{q.version}</span>
+        </div>
+        <span className="note">답하기 전에는 다음 단계로 넘어가지 않는다 - 정상 상태다</span>
+      </div>
+      {q.questions.map((x) => {
+        const chosen = by[x.question] ?? [];
+        return (
+          <div key={x.question} style={{ marginTop: 12 }}>
+            <div className="prose"
+              style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 10 }}>
+              {x.question}
+              {x.multiSelect && <span className="note" style={{ fontWeight: 400 }}> · 여러 개 고를 수 있다</span>}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(228px,1fr))', gap: 9 }}>
+              {x.options.map((o, i) => (
+                <button className="opt" key={o.label} disabled={busy}
+                  aria-pressed={chosen.includes(o.label)}
+                  onClick={() => set(x.question, o.label, Boolean(x.multiSelect))}>
+                  <span className="l">{i + 1} · {o.label}</span>
+                  {o.description && <span className="d">{o.description}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      <div className="row" style={{ marginTop: 12, gap: 10, flexWrap: 'wrap' }}>
+        <button className="go" disabled={busy || missing > 0}
+          onClick={() => onSubmit(Object.fromEntries(
+            q.questions.map((x) => [x.question, (by[x.question] ?? []).join(', ')]),
+          ))}>
+          answer ↵
+        </button>
+        <span className="note">
+          {missing > 0
+            ? <>아직 <span className="wrn">{missing}개</span> 남았다 - 모두 고르면 보낼 수 있다</>
+            : '보내기 전까지는 다시 고를 수 있다'}
+        </span>
+      </div>
+      <div className="note" style={{ marginTop: 10 }}>
+        같은 question_id + version 은 한 번만 작업을 시작한다 - 두 번 눌러도 제작이 두 번 돌지 않는다
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -711,37 +790,12 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
 
         {/* ─────────────────────────── 질문 게이트 */}
         {askable && s.pending_question && (
-          <div className="strip warn">
-            <div className="spread" style={{ flexWrap: 'wrap' }}>
-              <div>
-                <span className="wrn">?</span> <b>질문 대기</b>{' '}
-                <span className="mut">ask_user · {s.pending_question.question_id} v{s.pending_question.version}</span>
-              </div>
-              <span className="note">답하기 전에는 다음 단계로 넘어가지 않는다 - 정상 상태다</span>
-            </div>
-            {s.pending_question.questions.map((q) => (
-              <div key={q.question} style={{ marginTop: 12 }}>
-                <div className="prose" style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 10 }}>
-                  {q.question}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(228px,1fr))', gap: 9 }}>
-                  {q.options.map((o, i) => (
-                    <button className="opt" key={o.label} disabled={busy} onClick={() => void post('answers', {
-                      question_id: s.pending_question!.question_id,
-                      version: s.pending_question!.version,
-                      answers: { [q.question]: o.label },
-                    })}>
-                      <span className="l">{i + 1} · {o.label}</span>
-                      {o.description && <span className="d">{o.description}</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div className="note" style={{ marginTop: 10 }}>
-              같은 question_id + version 은 한 번만 작업을 시작한다 - 두 번 눌러도 제작이 두 번 돌지 않는다
-            </div>
-          </div>
+          <QuestionGate q={s.pending_question} busy={busy}
+            onSubmit={(answers) => void post('answers', {
+              question_id: s.pending_question!.question_id,
+              version: s.pending_question!.version,
+              answers,
+            })} />
         )}
 
         {/* ─────────────────────────── 중단 — 콜백 소실 */}
