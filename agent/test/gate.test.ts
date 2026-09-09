@@ -134,7 +134,7 @@ test('승인 게이트 (canUseTool)', async (t) => {
 
   // ── 경계 ────────────────────────────────────────────────────
   await t.test('경계 — 읽기 도구는 allowedTools 에 있어 게이트로 오지 않는다', () => {
-    assert.equal(READ_TOOLS.length, 5);
+    assert.equal(READ_TOOLS.length, 7, '조회 4 + 차트 1 + 카드 2');
     for (const t2 of READ_TOOLS) {
       assert.equal(WRITE_TOOLS.includes(t2), false, `${t2} 가 쓰기 목록에 있으면 안 된다`);
     }

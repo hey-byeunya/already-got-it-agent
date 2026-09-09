@@ -16,6 +16,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runBriefing } from '../engine.js';
 import { ScriptedDecider } from '../decider.js';
+import { loadEnvLocal } from '../env.js';
 import { limitsFromEnv } from '../limits.js';
 import { score, type Fixture, type Score } from './score.js';
 
@@ -32,15 +33,8 @@ const arg = (n: string): string | undefined => {
   return i >= 0 ? process.argv[i + 1] : undefined;
 };
 
-function loadEnvLocal(): void {
-  const p = resolve(PROJECT_ROOT, '.env.local');
-  if (!existsSync(p)) return;
-  for (const line of readFileSync(p, 'utf8').split('\n')) {
-    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (!m) continue;
-    const [, k, v] = m;
-    if (k && process.env[k] === undefined) process.env[k] = (v ?? '').replace(/^["']|["']$/g, '');
-  }
+function loadEnv(): void {
+  loadEnvLocal(PROJECT_ROOT);
 }
 
 export type Trial = {
@@ -240,7 +234,7 @@ function rescore(variant: string): void {
 }
 
 async function main(): Promise<void> {
-  loadEnvLocal();
+  loadEnv();
   const variant = arg('variant') ?? 'E0';
 
   if (process.argv.includes('--rescore')) { rescore(variant); return; }

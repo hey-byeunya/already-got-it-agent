@@ -7,3 +7,6 @@ node_modules/
 *.log
 .DS_Store
 evidence/runs/*.zip
+REVIEW_PLAN.md
+CHECKLIST.md
+docs/

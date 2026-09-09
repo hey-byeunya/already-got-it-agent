@@ -39,7 +39,15 @@ function storePath(runId: string): string {
 function load(runId: string): Store {
   const p = storePath(runId);
   if (!existsSync(p)) return { tokens: [], log: [] };
-  return JSON.parse(readFileSync(p, 'utf8')) as Store;
+  try {
+    return JSON.parse(readFileSync(p, 'utf8')) as Store;
+  } catch {
+    // 깨진 승인 기록으로 승인 판정을 내리지 않는다. 고쳐 쓰지도 않는다 —
+    // 토큰·로그를 지어내 복원하면 revert 범위가 어긋난다. 새 run_id 로 시작한다.
+    throw new ToolError('approvals_corrupted',
+      '승인 기록 파일이 깨졌다. 수선하지 않고 그대로 두며, 새 run_id 로 시작한다',
+      { path: p });
+  }
 }
 
 function save(runId: string, s: Store): void {
@@ -100,6 +108,14 @@ export function appendLog(runId: string, entry: ApprovalLogEntry): void {
 /** 이 실행이 승인 기록으로 만든 이슈 번호들. revert_issue 의 허용 범위. */
 export function createdIssueNumbers(runId: string): number[] {
   return load(runId).log.flatMap((e) => (e.created ? [e.created.issue_number] : []));
+}
+
+/**
+ * 그 이슈를 만든 저장소. revert_issue 가 닫을 대상을 **기록에서** 가져오게 한다.
+ * 저장소를 입력으로 받으면, 승인 기록에 있는 번호로 다른 저장소의 이슈를 닫을 수 있다.
+ */
+export function createdIssueRepo(runId: string, issueNumber: number): string | undefined {
+  return load(runId).log.find((e) => e.created?.issue_number === issueNumber)?.created?.repo;
 }
 
 export function isAlreadyReverted(runId: string, issueNumber: number): boolean {

@@ -9,11 +9,12 @@
  *   node dist/src/run.js --fixture f2-deploy-fail --approve
  *   OPS_MAX_TOOL_CALLS=2 node dist/src/run.js --fixture f1-normal   # 종료 조건 걸어 보기
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runBriefing } from './engine.js';
 import { ScriptedDecider } from './decider.js';
+import { loadEnvLocal } from './env.js';
 import { limitsFromEnv } from './limits.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -26,20 +27,13 @@ function arg(name: string): string | undefined {
 }
 const has = (name: string) => process.argv.includes(`--${name}`);
 
-/** .env.local 을 읽는다. 이미 설정된 환경변수는 덮어쓰지 않는다. */
-function loadEnvLocal(): void {
-  const p = resolve(PROJECT_ROOT, '.env.local');
-  if (!existsSync(p)) return;
-  for (const line of readFileSync(p, 'utf8').split('\n')) {
-    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (!m) continue;
-    const [, k, v] = m;
-    if (k && process.env[k] === undefined) process.env[k] = (v ?? '').replace(/^["']|["']$/g, '');
-  }
+/** .env.local 을 읽는다. 공용 로더를 쓴다 — 파서는 agent/src/env.ts 한 곳에만 있다. */
+function loadEnv(): void {
+  loadEnvLocal(PROJECT_ROOT);
 }
 
 async function main(): Promise<void> {
-  loadEnvLocal();
+  loadEnv();
 
   const fixture = arg('fixture') ?? process.env.OPS_FIXTURE_ID ?? 'f2-deploy-fail';
   const runId = arg('run-id') ?? `cli-${Date.now().toString(36)}`;
@@ -59,13 +53,27 @@ async function main(): Promise<void> {
   }
 
   const runsDir = resolve(PROJECT_ROOT, 'runs');
+  const mode = process.env.OPS_MODE ?? 'fixture';
+  const live = mode === 'live';
+
+  // MCP 서버에 넘기는 환경변수는 **명시한 것만**이다. 부모 환경을 그대로 물려주지 않는다.
+  // 그래서 live 자격증명도 live 모드일 때만 넘어간다 — fixture 실행은 토큰을 아예 못 본다.
   const childEnv: Record<string, string> = {
-    OPS_MODE: process.env.OPS_MODE ?? 'fixture',
+    OPS_MODE: mode,
     OPS_RUNS_DIR: runsDir,
     OPS_FIXTURES_DIR: resolve(PROJECT_ROOT, 'fixtures/snapshots'),
-    OPS_FIXTURE_ID: fixture,
+    // live 모드에서 fixture_id 가 남아 있으면 서버가 fixture_in_live_mode 로 거절한다.
+    ...(live ? {} : { OPS_FIXTURE_ID: fixture }),
     GITHUB_ALLOWED_REPOS: process.env.GITHUB_ALLOWED_REPOS ?? 'hey-byeunya/already-got-it',
   };
+  if (live) {
+    for (const k of ['VERCEL_API_TOKEN', 'VERCEL_PROJECT_ID', 'GITHUB_TOKEN',
+      'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'OPS_METRICS_TOKEN',
+      'OPS_ALLOW_LIVE_WRITES']) {
+      const v = process.env[k];
+      if (v) childEnv[k] = v;
+    }
+  }
   // 승인 토큰을 이 프로세스가 쓰고 MCP 서버가 읽는다. 같은 경로를 봐야 한다.
   process.env.OPS_RUNS_DIR = runsDir;
 
@@ -80,8 +88,17 @@ async function main(): Promise<void> {
     onLog: (l) => console.log(l),
   });
 
+  // 모델은 오늘 날짜를 모른다. 기간을 여기서 계산해 지시에 박는다.
+  // (fixture 모드에서는 서버가 스냅샷을 돌려주므로 이 값이 결과를 바꾸지 않는다.)
+  const periodUntil = new Date().toISOString();
+  const periodSince = new Date(Date.now() - 7 * 86_400_000).toISOString();
+
   const limits = limitsFromEnv();
-  console.log(`\n브리핑 실행 — 픽스처 ${fixture} · run ${runId}`);
+  console.log(`\n브리핑 실행 — ${live ? '⚡ live (실제 API)' : `픽스처 ${fixture}`} · run ${runId}`);
+  if (live) {
+    const writes = process.env.OPS_ALLOW_LIVE_WRITES === '1';
+    console.log(`실제 쓰기: ${writes ? '⚠️ 허용 — 승인하면 진짜 이슈가 만들어진다' : '차단 (OPS_ALLOW_LIVE_WRITES=0)'}`);
+  }
   console.log(`상한: 반복 ${limits.maxTurns} · 도구 ${limits.maxToolCalls} · 비용 $${limits.maxBudgetUsd}`
     + ` · 시간 ${limits.maxElapsedSeconds}s · 같은도구연속 ${limits.maxSameToolStreak}`);
   console.log(`쓰기 승인: ${has('approve') ? '허용' : approveOnly ? approveOnly.join(',') + ' 만' : '거절 (기본값)'}`);
@@ -90,7 +107,9 @@ async function main(): Promise<void> {
   const result = await runBriefing({
     runId,
     goal: arg('goal') ?? (
-      `이번 주 「이미 있어」 운영 브리핑 카드뉴스를 만들어 줘. 기간은 최근 7일이다.`
+      `이번 주 「이미 있어」 운영 브리핑 카드뉴스를 만들어 줘.`
+      + ` 기간은 ${periodSince.slice(0, 10)} 부터 ${periodUntil.slice(0, 10)} 까지다`
+      + ` (도구의 since·until 에 이 값을 그대로 넘긴다).`
       + ` run_id 는 "${runId}" 를 쓴다.`
       + ` 스토리보드를 제시한 뒤, 지표 카드는 render_chart 로 실제 SVG 까지 그려라.`
       + ` 손봐야 할 것이 있으면 create_github_issue 로 이슈 생성을 제안해라 (승인은 사람이 한다).`

@@ -118,6 +118,6 @@ export function createGate(opts: {
     // 여기 왔다는 것은 예상하지 못한 도구라는 뜻이라, 열어 주지 않는다.
     emit({ kind: 'auto_allowed', tool: toolName });
     return { behavior: 'deny',
-      message: `허용 목록에 없는 도구다: ${toolName}. 이 앱은 도메인 도구 7개만 쓴다` };
+      message: `허용 목록에 없는 도구다: ${toolName}. 이 앱은 도메인 도구 9개만 쓴다` };
   };
 }

@@ -6,8 +6,6 @@ IT 트렌드 네 축을 읽어 **주간 운영 브리핑 카드뉴스**를 만�
 모두의연구소 「Main Quest 4. 내 도메인에서 사용할 에이전틱 워크플로 서비스 만들기」 제출물이며,
 Day 39 「사용자와 함께 만드는 카드뉴스 에이전트」 6강의 확장 과제를 겸한다.
 
-> ⚠️ 작성 중 — `CHECKLIST.md`를 따라 진행한다. 완성 후 이 줄은 지운다.
-
 - **대상 앱**: [이미 있어](https://already-got-it.vercel.app) ([hey-byeunya/already-got-it](https://github.com/hey-byeunya/already-got-it))
 - **저장소**: [hey-byeunya/already-got-it-agent](https://github.com/hey-byeunya/already-got-it-agent) — 현재 비공개, 제출 시점에 공개로 전환
 - **실행**: 로컬 (`npm run dev`). 배포하지 않는다 — 제출은 저장소 URL + 결과물 캡처본이다
@@ -32,7 +30,7 @@ Day 39 「사용자와 함께 만드는 카드뉴스 에이전트」 6강의 확
 
 ## 연결한 도구
 
-도구 7개는 `mcp-server/`에 **독립 stdio MCP 서버**로 한 번만 구현하고, 앱은 Agent SDK로,
+도구 9개는 `mcp-server/`에 **독립 stdio MCP 서버**로 한 번만 구현하고, 앱은 Agent SDK로,
 Claude Code는 `.mcp.json`으로 같은 서버를 붙여 쓴다.
 
 | 도구 | 유형 | 권한 | 실행 전 확인 |
@@ -71,13 +69,12 @@ Agent SDK 문서가 경고하듯 **자동 승인된 도구는 `canUseTool` 콜�
 | 파일 | 내용 |
 |---|---|
 | [PRD.md](./PRD.md) | 문제 정의 · 타겟 유저 · 워크플로 설계 · 도구 계획 · 사람 개입 지점 · MVP와 화면 |
-| [TOOLS.md](./TOOLS.md) | 도구 7개의 입출력 스키마 · description · 실패 규칙 · 권한 |
+| [TOOLS.md](./TOOLS.md) | 도구 9개의 입출력 스키마 · description · 실패 규칙 · 권한 |
 | [AGENT_LOOP.md](./AGENT_LOOP.md) | 계획→호출→관찰→다음행동 루프 · 상태 관리 · 종료 조건 |
 | [API_SPEC.md](./API_SPEC.md) | 화면과 서버의 약속 — 상태값 · 중복 방지 · 새로고침과 재시작 |
 | [EVAL.md](./EVAL.md) | 평가 세트 · 지표 · 세팅 변화 실험표 · 실패 사례 |
 | [RUN.md](./RUN.md) | 실행 방법 · 환경변수 · 수용 기준 · 캡처 목록 |
 | [DECISIONS.md](./DECISIONS.md) | 선택과 이유 (D1~D18) |
-| [CHECKLIST.md](./CHECKLIST.md) | 진행 상황 |
 | `fixtures/` | 평가용 운영 스냅샷 4개 (정답 포함) |
 | `evidence/` | 실행 화면 · 실행 기록 · 결과 파일 · 검증 기록 |
 
@@ -86,7 +83,9 @@ Agent SDK 문서가 경고하듯 **자동 승인된 도구는 `canUseTool` 콜�
 ## 실행
 
 ```sh
-TODO
+cd mcp-server && npm install && npm run build
+cd ../agent && npm install && npm run build
+cd ../app && npm install && npm run dev   # http://localhost:3010
 ```
 
 환경변수는 `RUN.md`의 표를 참고한다. `.env.local`은 저장소에 넣지 않는다.
@@ -128,6 +127,21 @@ E4 에서 얻은 것: 이 지시의 값은 **읽는 사람이 감사할 수 있�
 냈고 그 과정에서 계속 좁혔다. 지금의 0은 "잡지 못한 것"과 구별되지 않아 **후보로만** 보고한다.
 확실하게 말할 수 있는 것은 **식별자 환각 0건**(배포 ID·커밋 SHA·이슈 번호, 정확한 문자열 일치)이다.
 
+## live 실행 결과 (2026-09-10, `live-t1`)
+
+평가는 픽스처로 재현하지만, 실제 API로도 한 편을 끝까지 돌렸다. 구독 로그인, 승인 없음.
+
+- `done (success)` — 도구 호출 24회, 실행 346.7초, 비용 $0.7940 추정(미청구).
+- 카드 6장 + PNG 6장 + ZIP(`cards/*.png` + `SOURCES.md`) 전부 열림.
+- Vercel 배포 0건 · GitHub 이슈·커밋·PR 0건 · 보안 권고 3종(next critical RCE 2건 포함).
+- Supabase 집계 함수 미생성이라 사용자 지표 축은 `확인 못 함` —
+  `supabase/ops_metrics.sql` 실행이 남은 사람 몫이다.
+  → **해소 (2026-09-10)**: 실행 후 집계 반환 확인 (7일 series + 직전 기간 비교값, 원시 행 없음).
+  이번 기간 전부 0, 직전 기간 활성 사용자 1 — 실제 0이지 결측이 아니다.
+- 지어낸 근거 카드가 `source_not_found`로 거절된 뒤 모델이 내용을 바꿔 완성했다.
+- 이슈 생성 제안 2건은 승인 없이 거절됐고 `permission_denials` 2건이 기록에 남았다.
+- 자세한 근거는 `DECISIONS.md` D24, 실행 방법은 `RUN.md` live 실행.
+
 ## 남은 과제
 
 검토한 뒤 **의도적으로 미룬** 범위다. 못 한 것이 아니라 판단한 것이다.
@@ -152,7 +166,7 @@ E4 에서 얻은 것: 이 지시의 값은 **읽는 사람이 감사할 수 있�
   말라고 명시한다. 종료 조건과 참고용 표시에만 쓴다.
 - 크래시나 예산 초과로 끝난 실행은 비용 필드가 0이거나 빠질 수 있다. 그런 경우 0으로 적지 않고
   **`usage_known: false`로 표시**한다. 사용량을 모르는 것과 0인 것은 다르다.
-- 표지 삽화는 **설명용 생성 이미지**다. 실제 화면 캡처가 아니다.
+- 표지 삽화는 agy로 미리 만들어 커밋한 SVG다 (`mcp-server/assets/cover.svg`, D23).
+  없으면 로컬 격자로 폴백한다 — 어느 쪽인지는 `cover_source`로 밝힌다.
 - 도구 권한 제한은 MCP 서버와 코드의 검사이며 운영체제 샌드박스가 아니다.
 - 실제 API 키·토큰은 이 저장소에 없다. `.env.local`은 제외했고 예시 파일은 형식만 담는다.
-- TODO: 미완료로 남긴 범위를 적는다.

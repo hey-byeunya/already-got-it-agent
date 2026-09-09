@@ -35,7 +35,14 @@ export function readState(runId: string): RunState | null {
   if (!isValidRunId(runId)) return null;
   const p = statePath(runId);
   if (!existsSync(p)) return null;
-  const s = JSON.parse(readFileSync(p, 'utf8')) as RunState;
+  let s: RunState;
+  try {
+    s = JSON.parse(readFileSync(p, 'utf8')) as RunState;
+  } catch {
+    // 깨진 상태 파일은 없는 것으로 본다 — 크래시 대신 재시작 후 재개 경로로 간다.
+    // (MCP 쪽 기록은 loudly 실패하지만, 화면 상태는 부분 결과라 복구가 우선이다.)
+    return null;
+  }
   // live 는 디스크 값이 아니라 **이 프로세스의 사실**이다. 재시작하면 false 가 된다.
   s.live = live.has(runId);
   // 대기 중이라고 저장돼 있는데 이 프로세스가 안 들고 있으면 중단된 것이다.
@@ -53,21 +60,22 @@ export function writeState(s: RunState): void {
   writeFileSync(statePath(s.run_id), JSON.stringify({ ...persisted, live: false }, null, 2));
 }
 
-export function listRuns(): { run_id: string; status: RunStatus; created_at: string; fixture_id: string | null }[] {
+export function listRuns(): { run_id: string; status: RunStatus; created_at: string; fixture_id: string | null; engine: 'claude' | 'opencode' }[] {
   if (!existsSync(RUNS_DIR)) return [];
-  const out: { run_id: string; status: RunStatus; created_at: string; fixture_id: string | null }[] = [];
+  const out: { run_id: string; status: RunStatus; created_at: string; fixture_id: string | null; engine: 'claude' | 'opencode' }[] = [];
   for (const name of readdirSync(RUNS_DIR)) {
     const s = readState(name);
-    if (s) out.push({ run_id: s.run_id, status: s.status, created_at: s.created_at, fixture_id: s.fixture_id });
+    if (s) out.push({ run_id: s.run_id, status: s.status, created_at: s.created_at, fixture_id: s.fixture_id, engine: s.engine ?? 'claude' });
   }
   return out.sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-export function createRun(init: { runId: string; fixtureId: string | null; goal: string }): RunState {
+export function createRun(init: { runId: string; fixtureId: string | null; goal: string; engine?: 'claude' | 'opencode' }): RunState {
   const now = new Date().toISOString();
   const s: RunState = {
     run_id: init.runId,
     fixture_id: init.fixtureId,
+    engine: init.engine ?? 'claude',
     status: 'planning',
     created_at: now,
     updated_at: now,

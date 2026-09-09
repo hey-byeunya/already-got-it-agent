@@ -14,6 +14,10 @@ export const READ_TOOLS = [
   'get_dev_activity',
   'web_search',
   'render_chart',
+  // 카드 만들기와 내보내기는 이 실행의 폴더 안에만 쓴다. 외부를 바꾸지 않으므로
+  // 사람의 승인을 매번 받지 않는다 — 승인은 저장소를 바꾸는 두 도구에만 둔다.
+  'compose_card',
+  'export_cardnews',
 ].map(mcp);
 
 /**
@@ -27,7 +31,7 @@ export const WRITE_TOOLS = ['create_github_issue', 'revert_issue'].map(mcp);
 
 /**
  * 내장 도구 차단. 맨이름으로 적으면 **도구 정의가 요청에서 빠져** 모델이 존재조차 모른다.
- * 이 앱의 도구는 도메인 API 6개와 차트 하나뿐이라 파일·셸 표면이 필요 없다.
+ * 이 앱의 도구는 도메인 API 6개·차트·카드 제작뿐이라 파일·셸 표면이 필요 없다.
  */
 export const BLOCKED_BUILTINS = [
   'Bash', 'BashOutput', 'KillShell',

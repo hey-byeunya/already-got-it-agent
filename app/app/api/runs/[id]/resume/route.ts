@@ -41,6 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     runId: id,
     fixtureId: s.fixture_id,
     goal: s.goal,
+    engine: s.engine ?? 'claude',
     ...(mode === 'resume' && s.session_id ? { resumeSessionId: s.session_id } : {}),
   });
   return NextResponse.json({ ok: true, mode });

@@ -50,7 +50,7 @@
   > (allow 규칙 포함) `canUseTool` 콜백을 건너뛰므로, 거기 둔 권한 검사가 그 도구에 대해서는
   > **조용히 우회된다.**
 
-  즉 도구 7개를 모두 `allowedTools`에 넣으면 `create_github_issue`가 자동 승인되고 **승인 화면이
+  즉 도구 9개를 모두 `allowedTools`에 넣으면 `create_github_issue`가 자동 승인되고 **승인 화면이
   아예 뜨지 않는다.** 게이트가 있는 줄 알았는데 없는 상태 — 이 서비스가 겨냥하는 "조용한 실패"를
   서비스 자신이 저지르는 셈이다.
 
@@ -70,7 +70,7 @@
 
 | 규칙 | 무엇을 막는가 | 왜 훅이어야 하는가 |
 |---|---|---|
-| `tool_not_allowed` | 도메인 도구 7개와 `AskUserQuestion` 밖의 도구 | `disallowedTools`가 잘못 설정되거나 `bypassPermissions`가 켜져도 남는 검사 |
+| `tool_not_allowed` | 도메인 도구 9개와 `AskUserQuestion` 밖의 도구 | `disallowedTools`가 잘못 설정되거나 `bypassPermissions`가 켜져도 남는 검사 |
 | `model_supplied_approval_token` | 모델이 보낸 입력에 `approval_token`이 들어 있는 경우 | ①②는 "**유효한** 토큰이면 실행한다"까지만 보장한다. 토큰이 **어디서 왔는지**는 보장하지 않는다 |
 
 두 번째 규칙을 왜 두는가 — 지금은 모델이 토큰을 알 경로가 없다. 하지만 나중에 입력을 되돌려 주는
@@ -92,7 +92,7 @@
 - **결정**: `mcp-server/`에 stdio MCP 서버를 만들고, 앱은 `mcpServers` 옵션으로 붙여 쓴다
 
 ```
-mcp-server/            ← 도구 7개. 구현은 여기 한 곳
+mcp-server/            ← 도구 9개. 구현은 여기 한 곳
    ↑ 붙여 씀
 app/  (Next.js)        ← Agent SDK 가 외부 MCP 서버로 연결
 Claude Code            ← .mcp.json 에 등록하면 같은 서버를 그대로 사용
@@ -161,6 +161,8 @@ Claude Code            ← .mcp.json 에 등록하면 같은 서버를 그대로
 
 - 하나라도 걸리면 `stopped`으로 남기고 사람에게 넘긴다. 종료는 **코드가 검사**하고, 모델의
   "다 했다" 한 마디에 맡기지 않는다.
+- 경계는 초과(>)다. 상한값 자체는 허용하고 그 다음부터 막는다 — "같은 도구 3회"면
+  3번째까지는 일하고 4번째에서 중단한다 (`agent/src/limits.ts` 주석과 짝이다).
 - `waiting_for_user`로 보낸 시간은 실행 시간에 넣지 않는다. 사람을 기다리는 건 정상이다.
 - **비용 한도는 직접 만들지 않았다.** SDK의 `maxBudgetUsd`가 이미 한다.
 
@@ -220,10 +222,115 @@ Claude Code            ← .mcp.json 에 등록하면 같은 서버를 그대로
 - **미룬 확장**: 멀티 에이전트, 자동 트리거(스케줄·웹훅), n8n 오류 감지 → `README.md`의 「남은 과제」
 - **결정일**: 2026-09-09
 
-## D17. 그 밖의 미정
+## D17. 미정이었던 것 — 확인 결과
 
-| 항목 | 확인할 것 |
+| 항목 | 확인 결과 (2026-09-09) |
 |---|---|
-| Vercel API 조회 범위 | Hobby 플랜에서 배포 이력·빌드 상태·함수 오류 중 어디까지 읽히는지 |
-| 카드 비율 | 1080×1350 등 |
-| 집계 RPC 지표 목록 | 가입 추이 · 있템/위시 등록 수 · 활성 사용자 |
+| Vercel API 조회 범위 | **배포 이력·상태·커밋 SHA 는 읽힌다** (`/v6/deployments`, 180일 29건 확인). 빌드 오류 원문은 `/v13/deployments/{id}` 로 실패 건만. **함수 오류 수는 조회 경로가 없다** — 관측 API 는 404, 런타임 로그는 배포별·단기 보관이라 주간 집계로 못 쓴다 → live 모드에서 `unavailable_fields: ["function_errors"]` 로 내린다 |
+| 카드 비율 | **1080×1350** (4:5) 로 확정 |
+| 집계 RPC 지표 목록 | **확정** — `signups`(auth.users) · `owned_created` · `wish_created` · `active_users`(있템/위시를 만들거나 고친 distinct 사용자). 정의를 `supabase/ops_metrics.sql` 주석에 박아 두었다 |
+| 화면 전환율·유입 | 여전히 불가 — 기반 앱에 계측이 없다 (`README.md` 남은 과제) |
+
+## D19. live `web_search` → 범용 검색 대신 **의존성 릴리스·보안 권고**로 좁힘
+
+- **결정**: live 모드의 `web_search` 는 npm registry 와 GitHub Advisory Database 두 곳만 본다.
+- **왜**: 도구 description 이 이미 범위를 정해 놓았다 — "이 앱이 실제로 쓰는 의존성의 릴리스 노트나
+  보안 권고를 찾을 때만 호출한다". 범용 검색 API 키를 새로 발급받는 대신 그 문장을 그대로 구현했다.
+  **설명과 구현이 어긋나지 않는 쪽**을 골랐다.
+- **얻은 것**: 결과가 결정적이고, `published_at` 이 실제 값이며, 앱이 쓰지 않는 패키지 소식이
+  섞여 들어오지 않는다. 새 자격증명도 필요 없다 (npm 은 키 없음, 권고는 기존 `GITHUB_TOKEN`).
+- **못 하는 것**: 의존성과 무관한 일반 IT 트렌드. `README.md` 「밝혀 두는 것」에 적었다.
+- **첫 실행에서 실제로 잡은 것**: `next` 의 critical 권고(GHSA-2xp9-vwfh-vxw4 — AVIF 이미지
+  최적화 경로의 인증 없는 RCE). 기반 앱이 next 16.2.11 이므로 실제로 해당한다.
+- **결정일**: 2026-09-09
+
+## D20. 집계 RPC 에 **토큰 인자**를 둔다 — anon 키는 공개 값이다
+
+- **결정**: `public.ops_user_metrics(p_token, p_since, p_until, p_granularity)` 가 첫 인자로
+  비밀값을 받고, PostgREST 가 노출하지 않는 `private.ops_config` 의 값과 대조한다.
+- **왜**: D10 이 `service_role` 대신 `security definer` 집계 함수를 쓰기로 했는데, 그 함수를
+  anon 에게 열어 주는 순간 **anon 키를 가진 누구나 전체 가입자 수를 읽을 수 있다.**
+  anon 키는 Next.js 앱에서 브라우저로 내려가는 공개 값이라 비밀이 아니다.
+  D10 만으로는 개인정보는 막히지만 전사 지표는 열려 있었다.
+- **어떻게**: 스키마 `private` 는 PostgREST 가 노출하지 않으므로 REST 로 그 테이블을 읽을 수 없다.
+  에이전트는 `.env.local` 의 `OPS_METRICS_TOKEN` 으로 값을 넘긴다.
+- **여전히 지킨 것**: 반환형이 `jsonb` 집계값이다. 행 집합을 반환하지 않으므로
+  **원시 행 반환이 시그니처 차원에서 불가능하다.**
+- **한계**: 토큰 대조는 상수 시간 비교가 아니다. 이 규모에서는 Supabase 쪽 호출 제한에 맡긴다.
+- **결정일**: 2026-09-09
+
+## D21. live 모드의 실제 쓰기는 **승인과 별개의 스위치**로 한 번 더 막는다
+
+- **결정**: `OPS_ALLOW_LIVE_WRITES=1` 이 아니면 live 모드에서도 `create_github_issue` ·
+  `revert_issue` 가 `live_writes_disabled` 로 거절된다. 기본값은 꺼짐.
+- **왜**: 승인 게이트 ①②③ 은 "이 이슈 내용이 맞는가"를 묻는다. 그것과
+  "실제 공개 저장소를 바꿔도 되는가"는 **다른 질문**이다.
+  live 로 읽기만 돌려 보는 동안 사람이 무심코 승인하면 진짜 이슈가 생긴다.
+  두 질문을 한 스위치에 묶으면, 실수의 값이 되돌릴 수 없는 쪽으로 커진다.
+- **어디에 두었나**: 서버의 도구 핸들러 안, `consume()`(토큰 검사) **뒤**다.
+  앞에 두면 스위치가 꺼져 있을 때 승인 토큰이 소모되지 않아, 토큰 재사용 검사와 어긋난다.
+- **검증**: `npm run smoke-live` 9번 — 유효한 승인 토큰으로 호출해도 거절되는 것을 확인한다.
+- **결정일**: 2026-09-09
+
+## D22. 카드 PNG → **로컬 헤드리스 브라우저**로 굽는다
+
+- **결정**: `export_cardnews` 가 `--headless --screenshot` 으로 카드 SVG 를 PNG 로 바꾼다.
+  경로는 `OPS_CHROME_PATH` 로 바꿀 수 있고, 없으면 `rasterizer_not_found` 로 알린다.
+- **왜 이 방법인가**: 이 기계에 `rsvg-convert`·`resvg`·ImageMagick 이 전부 없었다.
+  네이티브 바이너리를 딸린 npm 패키지(sharp·resvg-js)를 넣는 대신, 이미 설치돼 있고
+  **한글 폰트를 시스템에서 그대로 가져오는** 브라우저를 썼다. 런타임 이미지 생성 API 를
+  부르지 않는다는 D11 의 원칙은 그대로다 — 내 SVG 를 내 기계가 굽는다.
+- **`opened_ok` 를 어떻게 확인하나**: 변환 명령의 종료 코드를 믿지 않는다.
+  PNG 시그니처와 IHDR 을 직접 읽어 1080×1350 을 대조하고, 바이트 수가 너무 작으면
+  (글자가 하나도 안 그려진 경우) 실패로 본다. 한 장이라도 실패하면 ZIP 을 만들지 않는다.
+- **ZIP 을 직접 쓴 이유**: 만드는 쪽과 확인하는 쪽을 분리하려고. 내가 쓴 ZIP 을
+  **독립된 도구**(`unzip -l` · `unzip -t`)로 열어 검사한다. 같은 코드로 확인하면
+  잘못 만든 ZIP 을 잘못 확인한다.
+- **결정일**: 2026-09-09
+
+## D23. 표지 삽화 — `agy` 우선, 로컬 폴백 (2026-09-09 갱신)
+
+- **결정**: 표지 카드(`kind: "cover"`)의 삽화는 **`agy` 산출물이 있으면 먼저 쓰고,
+  없으면 로컬 SVG 로 그린다.** 순서는 `OPS_COVER_ART` 로 바꾼다 (`auto`·`agy`·`local`,
+  기본 `auto`). 어느 쪽인지는 `compose_card` 결과가 `cover_source`
+  (`agy-asset`·`local-svg`)로 밝힌다.
+- **왜 이렇게 나누는가**: 런타임에 `agy` 를 매번 부르면 같은 카드가 매번 다른 그림이 돼
+  캡처 재현성이 깨지고, 실행마다 에이전트 호출 비용·대기가 붙는다 (D11).
+  그래서 생성은 사람이 한 번 (`npm run generate-cover` → `mcp-server/assets/cover.svg`
+  커밋), 사용은 매 실행이다. 재현성이 깨지지 않는다 — 같은 에셋 파일이면 같은 그림이다.
+- **`agy` 실측 (2026-09-09)**: 앞 판본에는 "`agy` CLI 가 번들에 없다"고 적었다.
+  다시 확인하니 `/opt/homebrew/bin/agy` (v1.1.28)가 PATH 에 있고 `agy -p` 가 동작한다.
+  다만 이미지 전용 서브커맨드는 없고 에이전트 CLI라, 표지 생성은 `-p` 프롬프트로
+  SVG 코드를 받아내는 스크립트로 감쌌다 (`mcp-server/scripts/generate-cover.mjs`,
+  `OPS_AGY_BIN` 으로 경로 지정 가능). `agy` 가 없으면 스크립트는 만들지 않고
+  로컬 폴백을 안내한다 — 없는 명령을 가정하지 않는다.
+- **안전장치**: 에셋이 있는데 깨졌으면 로컬로 뭉개지 않고 `cover_not_svg` 로 거절한다.
+  커밋된 파일이 깨진 것을 조용히 넘기면 "agy 삽화를 쓴다"는 보고가 거짓이 된다.
+  `OPS_COVER_ART=agy` 인데 에셋이 없으면 `cover_asset_missing` 으로 거절한다.
+  `<script>` 포함·1MB 초과 에셋은 저장도·삽입도 하지 않는다.
+- **앞 판본에서 바꾼 것**: 로컬 SVG 를 기본값이 아니라 폴백으로 내렸다.
+  로컬 격자(`coverArt`, `card_no` 종자)는 그대로 둔다 — 에셋이 없는 환경에서도
+  표지가 만들어져야 하므로.
+- **결정일**: 2026-09-09 (초판) · 2026-09-09 (agy 확인 후 agy-우선으로 갱신)
+
+## D24. 첫 live 실행이 증명한 것 (2026-09-10)
+
+- **실행**: `OPS_MODE=live node dist/src/run.js --run-id live-t1` (구독 로그인, 승인 없이).
+  `done (success)` — 도구 호출 24회(MCP 기록 20건 — `AskUserQuestion`·스키마 거절은 서버 기록에 없다),
+  실행 346.7초, 비용 $0.7940 추정(구독이라 청구되지 않음). 카드 6장 + PNG·ZIP·SOURCES.md 전부 열림.
+- **읽기 4축**: Vercel(배포 0건)·GitHub(이슈·커밋·PR 0건)·web_search(릴리스·권고 12건 내외) 정상.
+  Supabase는 `rpc_not_created` — 집계 함수 미생성이라 사용자 지표 축 전체가 `확인 못 함`이 됐다.
+  **남은 사람 몫**: `supabase/ops_metrics.sql`을 SQL Editor에서 실행하고 `OPS_METRICS_TOKEN` 값을 맞춘다.
+  → **해소 (2026-09-10)**: 실행 후 직접 호출로 확인. 7일 series + totals + 직전 기간 비교값,
+  `unavailable_fields: []`, 집계값만(원시 행 없음). 이번 기간 전부 0 · 직전 기간 활성 1.
+- **P1-7(a) live 증거**: 4번 카드가 지어낸 근거로 `source_not_found` 거절당하자 모델이
+  `get_user_metrics`를 재호출하고, 그래도 안 되자 개발 활동 내용으로 카드를 바꿔 완성했다.
+  거절이 작업 전체를 죽이지 않고 대체 경로로 이어진 첫 실제 사례다.
+- **승인 게이트 live 증거**: 이슈 생성 제안 2건이 모두 거절됐고(플래그 없음),
+  SDK `permission_denials` 2건이 기록에 남았다. `OPS_ALLOW_LIVE_WRITES=0`이라
+  승인했어도 서버가 `live_writes_disabled`로 막는 이중 구조다.
+- **D15 live 증거**: 신규 입력 토큰은 34에 불과했지만 캐시 읽기가 1,050,818이었다.
+  캐시를 같은 무게로 셌다면 200,000 상한에 걸려 정상 실행이 중단됐을 것이다.
+- **D19 live 증거**: `next` critical RCE 2건(GHSA-2xp9-vwfh-vxw4 포함, D19에서 미리 잡은 것과 동일),
+  `react` XSS medium, `vitest` 경로 탐색 medium을 실제로 받아 카드화했다.
+- **결정일**: 2026-09-10

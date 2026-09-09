@@ -86,26 +86,58 @@ export function normalizeToolName(name: string): string {
 }
 
 /**
- * data 의 모든 값이 source 가 가리키는 결과에 실제로 있는지 확인한다.
- *
- * 부분집합 검사다 — 순서나 누락은 막지 않고 **없는 값이 들어오는 것**을 막는다.
- * 막으려는 위협이 지어낸 수치이기 때문이다. 이 판정 기준은 EVAL.md 에 적어 둔다.
+ * 이번 실행에서 특정 도구가 성공적으로 돌려준 마지막 결과.
+ * 기록이 없으면 도구 이름과 고치는 법을 담아 거절한다 — chart·compose 가 공유한다.
  */
+export function resolveSourceOutput(runId: string, tool: string, source: unknown): unknown {
+  const toolKey = normalizeToolName(tool);
+  const output = lastSuccessfulOutput(runId, toolKey);
+  if (output === undefined) {
+    throw new ToolError(
+      'source_not_found',
+      `이 실행에서 ${toolKey} 을 성공적으로 호출한 기록이 없다. 근거 없이는 만들지 않는다`,
+      { source, resolved_tool: toolKey, how_to_fix: `먼저 ${toolKey} 을 호출한다` },
+    );
+  }
+  return output;
+}
+
+/**
+ * `compose_card` sources 한 행을 대조한다. `"도구 · 필드"` 형식이어야 한다.
+ *
+ * 필드 뒤 괄호 메모(`"get_user_metrics · totals (가입 14)"`)는 허용한다 —
+ * 파서는 `·` 뒤 첫 토큰까지만 필드로 읽는다. 존재 여부까지만 본다.
+ * 값이 문장 내용과 의미상 이어지는지는 사람이 본다 (EVAL 근거 미표기율).
+ */
+export function verifySourceRow(runId: string, row: string): { tool: string; field: string } {
+  const sep = row.indexOf('·');
+  const tool = (sep < 0 ? '' : row.slice(0, sep)).trim();
+  const rest = (sep < 0 ? '' : row.slice(sep + 1)).trim();
+  // 필드는 첫 토큰까지. 뒤에 붙는 "(가입 14)" 같은 메모는 사람이 읽을 설명이다.
+  const field = rest.split(/[\s(]/, 1)[0]?.trim() ?? '';
+  if (!tool || !field) {
+    throw new ToolError('source_shape_invalid',
+      '근거는 "도구 · 필드" 형식이어야 한다. 예: "get_user_metrics · totals.active_users"',
+      { row, how_to_fix: '어느 도구의 어느 값인지 "·" 로 이어 적는다' });
+  }
+
+  const source = { tool, field };
+  const output = resolveSourceOutput(runId, tool, source);
+  const resolved = resolveField(output, field)
+    .filter((v) => v !== null && v !== undefined && v !== '');
+  if (resolved.length === 0) {
+    throw new ToolError('source_field_empty',
+      `근거가 가리키는 값이 결과에 없다: ${tool} · ${field}`,
+      { source, hint: '예: series[].signups, totals.active_users' });
+  }
+  return { tool: normalizeToolName(tool), field };
+}
 export function verifySource(runId: string, source: Source, data: ChartPoint[]): void {
   if (data.length === 0) {
     throw new ToolError('empty_chart_data', 'data 가 비어 있다. 그릴 것이 없다', { source });
   }
 
-  const toolKey = normalizeToolName(source.tool);
-  const output = lastSuccessfulOutput(runId, toolKey);
-  if (output === undefined) {
-    throw new ToolError(
-      'source_not_found',
-      `이 실행에서 ${toolKey} 을 성공적으로 호출한 기록이 없다. 근거 없이는 차트를 그리지 않는다`,
-      { source, resolved_tool: toolKey, how_to_fix: `먼저 ${toolKey} 을 호출한다` },
-    );
-  }
-
+  const output = resolveSourceOutput(runId, source.tool, source);
   const resolved = numbersIn(resolveField(output, source.field));
   if (resolved.length === 0) {
     throw new ToolError('source_field_empty', `source.field 가 숫자를 가리키지 않는다: ${source.field}`, {
@@ -135,12 +167,16 @@ export function renderBarChart(opts: {
   highlight?: { label: string; note?: string } | null;
 }): string {
   const W = 960, H = 540, PAD = 72;
+  // 제목이 차지하는 띠를 막대 영역에서 빼 둔다.
+  // 처음에는 빼지 않아서, 가장 높은 막대의 값 라벨이 제목과 겹쳐 둘 다 읽히지 않았다
+  // (카드 PNG 를 실제로 열어 보고 발견했다 — SVG 만 보고는 몰랐다).
+  const TOP = PAD + 34;
   const { title, data, highlight } = opts;
   const max = Math.max(...data.map((d) => d.value), 1);
   const bw = (W - PAD * 2) / data.length;
 
   const bars = data.map((d, i) => {
-    const h = Math.round(((H - PAD * 2) * d.value) / max);
+    const h = Math.round(((H - PAD - TOP) * d.value) / max);
     const x = PAD + i * bw + bw * 0.15;
     const y = H - PAD - h;
     const on = highlight?.label === d.label;

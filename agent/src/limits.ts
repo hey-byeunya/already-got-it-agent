@@ -87,6 +87,8 @@ export class LimitTracker {
   /** 하나라도 걸리면 이유를 돌려준다. 걸린 게 없으면 null. */
   /** @param freshInputTokens 캐시 읽기를 제외한 누적 신규 입력 토큰 */
   check(freshInputTokens: number): StopReason | null {
+    // 경계는 초과(>)다. 상한값 자체는 허용하고 그 다음부터 막는다.
+    // "상한까지는 통과해야 한다"는 검사와 짝이다 — `>=` 로 바꾸면 정상 실행이 일찍 끊긴다.
     if (this.toolCalls > this.limits.maxToolCalls) {
       return { limit: 'maxToolCalls', message: '도구 호출 상한에 닿았다',
         observed: this.toolCalls, allowed: this.limits.maxToolCalls };
@@ -113,7 +115,14 @@ export class LimitTracker {
 export function limitsFromEnv(): LimitConfig {
   const num = (k: string, d: number) => {
     const v = process.env[k];
-    return v === undefined || v === '' ? d : Number(v);
+    if (v === undefined || v === '') return d;
+    const n = Number(v);
+    // 오타가 NaN 상한으로 들어가면 모든 비교가 false 가 돼 상한이 무력화된다.
+    if (!Number.isFinite(n)) {
+      console.warn(`[limits] ${k}="${v}" 가 숫자가 아니라 기본값 ${d} 를 쓴다`);
+      return d;
+    }
+    return n;
   };
   return {
     maxTurns: num('OPS_MAX_TURNS', DEFAULT_LIMITS.maxTurns),

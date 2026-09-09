@@ -46,6 +46,20 @@ export const config = {
   get approvalTtlSeconds(): number { return Number(process.env.OPS_APPROVAL_TTL ?? 600); },
 };
 
+/**
+ * 감시 대상 의존성. 기반 앱 package.json 의 의존성과 같아야 한다.
+ *
+ * 두 곳의 정본이다 — live `web_search` 가 보는 범위(advisories.ts)와
+ * 프롬프트가 모델에 알리는 목록(prompt.ts) 이 여기서 갈라진다.
+ * 이름을 바꾸면 두 곳이 함께 바뀌고, 프롬프트 쪽은 빠진 이름이 있으면
+ * import 시점에 터진다 (조용히 어긋나지 않게).
+ */
+export const WATCHED_PACKAGES = [
+  'next', 'react', 'react-dom',
+  '@supabase/ssr', '@supabase/supabase-js',
+  'tailwindcss', 'typescript', 'vitest',
+];
+
 export function isFixtureMode(): boolean {
   return config.mode === 'fixture';
 }

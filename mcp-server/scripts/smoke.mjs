@@ -15,7 +15,7 @@ import { spawn } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -156,6 +156,108 @@ const reverted = await call('revert_issue', {
 });
 ok('내가 만든 이슈는 되돌린다', !reverted.isError && reverted.data.reverted === true,
   reverted.isError ? reverted.data.error : `#${num} → ${reverted.data.state}`);
+
+// 6. 카드 제작과 내보내기
+const cover = await call('compose_card', {
+  card_no: 1, kind: 'cover', title: '「이미 있어」 주간 운영 브리핑',
+  body: ['2026-09-02 ~ 2026-09-09', '시스템 · 사용자 · 개발 · 트렌드'],
+  sources: ['픽스처 ' + FIXTURE],
+});
+ok('표지 카드 합성', !cover.isError && cover.data.rendered_ok === true,
+  cover.isError ? cover.data.error : `${cover.data.svg_path} (${cover.data.bytes}B)`);
+
+const chartPath = chart?.data?.svg_path;
+const metric = await call('compose_card', {
+  card_no: 2, kind: 'metric', title: '가입 추이',
+  body: ['하루 평균 두세 명이 새로 들어왔다.'],
+  sources: ['get_user_metrics · series[].signups'],
+  chart_path: chartPath,
+});
+ok('차트를 끼운 지표 카드', !metric.isError && metric.data.chart_embedded === true,
+  metric.isError ? metric.data.error : `레이어 제목 ${metric.data.layers?.title_lines}줄`
+    + ` · 본문 ${metric.data.layers?.body_lines}줄 · 출처 ${metric.data.layers?.source_lines}줄`);
+
+ok('제목·본문·출처가 각각 별도 레이어로 나간다', (() => {
+  const svg = readFileSync(`${RUNS_DIR}/${RUN_ID}/cards/02.svg`, 'utf8');
+  return ['layer-title', 'layer-body', 'layer-source', 'layer-chart']
+    .every((id) => svg.includes(`id="${id}"`));
+})(), 'layer-title · layer-body · layer-source · layer-chart');
+
+// 글자가 넘치면 잘라서 그리지 않고 거절한다
+const overflow = await call('compose_card', {
+  card_no: 3, kind: 'metric', title: '넘치는 카드',
+  body: Array.from({ length: 30 }, (_, i) => `${i + 1}번째 줄. 이 문장은 상자를 넘기려고 길게 적은 것이다.`),
+  sources: ['get_user_metrics · totals'], chart_path: chartPath,
+});
+ok('글자가 넘치면 잘라 그리지 않고 거절', overflow.isError && overflow.data.error === 'text_overflow',
+  overflow.isError ? `${overflow.data.error} (본문 ${overflow.data.overflow?.[0]?.lines_needed}줄 필요)` : '거절 안 됨');
+
+// 이 실행이 만들지 않은 차트 경로는 받지 않는다
+const badChart = await call('compose_card', {
+  card_no: 3, kind: 'metric', title: 'x', body: ['x'], sources: ['x'],
+  chart_path: '../../../etc/passwd',
+});
+ok('실행 밖 경로를 차트로 받지 않는다',
+  badChart.isError && badChart.data.error === 'chart_path_not_allowed', badChart.data.error);
+
+const text3 = await call('compose_card', {
+  card_no: 3, kind: 'text', title: '지금 손봐야 할 것',
+  body: ['열린 이슈 2건 중 12일 지난 것이 하나 있다.', '배포 실패 1건은 원인이 기록돼 있다.'],
+  sources: ['get_dev_activity · summary'],
+});
+ok('세 번째 카드 합성', !text3.isError, text3.isError ? text3.data.error : text3.data.svg_path);
+
+// 없는 근거로는 카드를 만들지 않는다 (cover 제외)
+const badSource = await call('compose_card', {
+  card_no: 3, kind: 'text', title: 'x', body: ['x'], sources: ['지어낸 근거'],
+});
+ok('없는 근거로 카드를 만들지 않는다',
+  badSource.isError && badSource.data.error === 'source_shape_invalid', badSource.data.error);
+
+// **한 장만 고친다** — 차트 파일과 다른 카드가 그대로여야 한다
+const chartMtimeBefore = statSync(`${RUNS_DIR}/${RUN_ID}/${chartPath}`).mtimeMs;
+const card1MtimeBefore = statSync(`${RUNS_DIR}/${RUN_ID}/cards/01.svg`).mtimeMs;
+await new Promise((r) => setTimeout(r, 20));
+const edited = await call('compose_card', {
+  card_no: 2, kind: 'metric', title: '가입 추이 (문안 수정)',
+  body: ['문장만 고쳤다. 차트는 다시 그리지 않는다.'],
+  sources: ['get_user_metrics · series[].signups'],
+  chart_path: chartPath,
+});
+ok('카드 1장 텍스트 수정 — 차트를 다시 그리지 않는다',
+  !edited.isError
+    && edited.data.chart_rerendered === false
+    && statSync(`${RUNS_DIR}/${RUN_ID}/${chartPath}`).mtimeMs === chartMtimeBefore,
+  `차트 파일 mtime 그대로 · 건드리지 않은 카드 ${JSON.stringify(edited.data?.other_cards_untouched)}`);
+ok('경계 — 다른 카드는 바뀌지 않는다',
+  statSync(`${RUNS_DIR}/${RUN_ID}/cards/01.svg`).mtimeMs === card1MtimeBefore, '01.svg mtime 그대로');
+
+// 내보내기
+const exported = await call('export_cardnews', { note: '스모크' });
+ok('PNG · ZIP · 출처 기록 내보내기', !exported.isError && exported.data.opened_ok === true,
+  exported.isError ? `${exported.data.error} ${JSON.stringify(exported.data.failed ?? '')}`
+    : `${exported.data.cards}장 · ZIP ${exported.data.zip_bytes}B`);
+
+// **독립된 도구로** ZIP 을 열어 본다. 만든 코드와 확인하는 코드를 분리한다.
+if (!exported.isError) {
+  const zipAbs = `${RUNS_DIR}/${RUN_ID}/${exported.data.zip_path}`;
+  let listed = '';
+  let tested = '';
+  try { listed = execFileSync('unzip', ['-l', zipAbs]).toString(); } catch (e) { listed = String(e); }
+  try { tested = execFileSync('unzip', ['-t', zipAbs]).toString(); } catch (e) { tested = String(e); }
+  const names = listed.split('\n').map((l) => l.trim().split(/\s+/).pop()).filter((n) => n?.includes('.'));
+  ok('내려받은 ZIP 을 unzip 으로 열어 순서·수량 확인',
+    tested.includes('No errors')
+      && names.includes('cards/01.png') && names.includes('cards/02.png')
+      && names.includes('cards/03.png') && names.includes('SOURCES.md'),
+    `${names.join(', ')}`);
+
+  // PNG 가 실제 그림인지 — 크기와 바이트 수를 직접 본다
+  const sizes = exported.data.png.map((p) => `${p.file} ${p.width}x${p.height} ${p.bytes}B`);
+  ok('PNG 크기가 카드 규격과 같다',
+    exported.data.png.every((p) => p.width === 1080 && p.height === 1350 && p.bytes > 4000),
+    sizes.join(' · '));
+}
 
 console.log(`${'─'.repeat(64)}`);
 console.log(`실행 기록: ${RUNS_DIR}/${RUN_ID}/toolcalls.jsonl`);

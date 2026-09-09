@@ -20,20 +20,23 @@ API는 웹 화면이 서버에 요청하는 약속이다. 여기 적은 상태�
 
 ## 엔드포인트
 
-| 메서드 · 경로 | 하는 일 | 입력 | 출력 | 오류 |
-|---|---|---|---|---|
-| `POST /api/runs` | 브리핑 실행 생성 | `{ period, focus_axes?, fixture_id? }` | `{ run_id }` | TODO |
-| `GET /api/runs/{id}` | 상태·대기 질문·진행 조회 | — | `{ status, step, question?, options?, draft?, usage }` | TODO |
-| `GET /api/runs/{id}/trace` | 실행 로그 (도구·호출 이유·입력·결과·소요) | `?after=` | `{ events[] }` | TODO |
-| `POST /api/runs/{id}/answers` | 질문 답변 제출 | `{ question_id, version, answer }` | `{ status }` | 지난 버전이면 거절 |
-| `POST /api/runs/{id}/storyboard/approve` | 스토리보드 승인 | `{ storyboard_version }` | `{ status }` | 버전 불일치면 거절 |
-| `POST /api/runs/{id}/cards/{n}/revise` | 카드 하나만 수정 | `{ title?, body? }` | `{ card }` | 다른 카드 결과는 보존 |
-| `POST /api/runs/{id}/approvals` | **쓰기 도구 승인** → 1회용 토큰 발급 | `{ tool, target, decision }` | `{ approval_token, expires_at }` | 거부 시 토큰 없음 |
-| `GET /api/runs/{id}/approvals` | 승인 기록 조회 (되돌리기 대상 범위) | — | `{ approvals[] }` | — |
-| `POST /api/runs/{id}/resume` | 서버 재시작 후 재개 또는 재시도 | `{ mode: "resume"\|"retry" }` | `{ status }` | 복구 불가면 사유 반환 |
-| `GET /api/runs/{id}/export` | PNG · ZIP · 근거 기록 | — | 파일 | 미승인이면 거절 |
+`구현`은 이 저장소에 라우트가 있다는 뜻이다. `미구현`은 계획만 있고 요청하면 404가 아니라
+라우트 자체가 없다는 뜻이다 — 화면은 미구현 경로를 부르지 않는다.
 
-TODO: 구현에 맞춰 경로와 필드를 확정한다.
+| 메서드 · 경로 | 하는 일 | 입력 | 출력 | 오류 | 구현 |
+|---|---|---|---|---|---|
+| `GET /api/runs` | 실행 목록·픽스처 목록·자격증명 출처 | — | `{ runs[], fixtures[], credential_source }` | — | 구현 |
+| `POST /api/runs` | 브리핑 실행 생성 | `{ fixture_id?, goal?, focus?, engine? ("claude"\|"opencode"), model? }` | `{ run_id }` (201) | — | 구현 |
+| `GET /api/runs/{id}` | 상태·대기 질문·진행 조회 | — | `RunState` 전문 | `run_not_found` 404 | 구현 |
+| `GET /api/runs/{id}/trace` | 실행 로그 (도구·호출 이유·입력·결과·소요) | `?after=` | `{ events[] }` | — | 미구현 — `GET /api/runs/{id}`의 `trace`로 대신 본다 |
+| `POST /api/runs/{id}/answers` | 질문 답변 제출 | `{ question_id, version, answers }` | `{ ok: true }` | `invalid_body` 400 · `already_answered`·`stale_version`·`stale_question`·`not_waiting`·`no_live_callback` 409 · `run_not_found` 404 | 구현 |
+| `POST /api/runs/{id}/approvals` | **쓰기 도구 승인·거절** → 대기 콜백을 푼다 (토큰 발급은 콜백이 한다) | `{ approval_id, version, approved, reason? }` | `{ ok: true }` | `invalid_body` 400 · `already_decided`·`stale_version`·`stale_approval`·`not_waiting`·`no_live_callback` 409 · `run_not_found` 404 | 구현 |
+| `GET /api/runs/{id}/approvals` | 승인 기록 조회 (되돌리기 대상 범위) | — | `{ approvals[] }` | — | 미구현 — `GET /api/runs/{id}`의 `decisions`로 대신 본다 |
+| `POST /api/runs/{id}/storyboard/approve` | 스토리보드 승인 | `{ storyboard_version }` | `{ status }` | 버전 불일치면 거절 | 미구현 — 질문 대기(`AskUserQuestion`)로 대신 받는다 |
+| `POST /api/runs/{id}/cards/{n}/revise` | 카드 하나만 수정 | `{ title?, body? }` | `{ card }` | 다른 카드 결과는 보존 | 미구현 — `compose_card`를 그 번호로 다시 부른다 |
+| `POST /api/runs/{id}/resume` | 서버 재시작 후 재개 또는 재시도 | `{ mode: "resume"\|"retry" }` | `{ ok, mode }` | `run_not_found` 404 · `already_live`·`no_session_to_resume` 409 | 구현 |
+| `GET /api/runs/{id}/charts/{file}` | 카드 차트 SVG 서빙 | — | SVG | 없으면 404 | 구현 |
+| `GET /api/runs/{id}/export` | PNG · ZIP · 근거 기록 | — | 파일 | 미승인이면 거절 | 미구현 — `export_cardnews` 도구 결과를 내려받는다 |
 
 ## 승인 토큰 규약
 

@@ -159,3 +159,85 @@ test('실제 실행에서 나온 마찰', async (t) => {
     });
   });
 });
+
+/**
+ * 검사: compose_card sources 행 대조 (TOOLS.md 6절)
+ *
+ * render_chart 가 값의 부분집합을 본다면, compose 는 행의 존재를 본다.
+ * 문자열 근거(빌드 오류 원문·이슈 제목)도 정당하므로 숫자 검사는 하지 않는다.
+ */
+test('compose_card 근거 행 대조', async (t) => {
+
+  const seed3 = () => {
+    runlog.openRun('r3', 'f1-normal');
+    runlog.record('r3', { tool: 'get_user_metrics', input: {},
+      output: { totals: { signups: 8 } }, ok: true, elapsed_ms: 1 });
+    runlog.record('r3', { tool: 'get_system_health', input: {},
+      output: { deployments: [{ id: 'dpl_abc', build_error: 'Type error' }] },
+      ok: true, elapsed_ms: 1 });
+  };
+
+  t.test('"도구 · 필드" 형식이면 통과하고 파싱 결과를 돌려준다', () => {
+    withTempRuns(() => {
+      seed3();
+      assert.deepEqual(chart.verifySourceRow('r3', 'get_user_metrics · totals.signups'),
+        { tool: 'get_user_metrics', field: 'totals.signups' });
+    });
+  });
+
+  t.test('문자열 근거도 통과한다 — 숫자 검사는 하지 않는다', () => {
+    withTempRuns(() => {
+      seed3();
+      chart.verifySourceRow('r3', 'get_system_health · deployments[0].build_error');
+    });
+  });
+
+  t.test('필드 뒤 괄호 메모는 허용된다 (description 예시와 같은 형태)', () => {
+    withTempRuns(() => {
+      seed3();
+      chart.verifySourceRow('r3', 'get_system_health · deployments[0].id (배포 dpl_abc)');
+      chart.verifySourceRow('r3', 'get_user_metrics · totals.signups (가입 8)');
+    });
+  });
+
+  t.test('형식이 아니면 source_shape_invalid', () => {
+    withTempRuns(() => {
+      seed3();
+      for (const bad of ['그냥 문장', '· totals', 'get_user_metrics ·', '·']) {
+        assert.throws(
+          () => chart.verifySourceRow('r3', bad),
+          (e: any) => e.code === 'source_shape_invalid',
+          `거절돼야 한다: ${bad}`,
+        );
+      }
+    });
+  });
+
+  t.test('호출한 적 없는 도구면 source_not_found', () => {
+    withTempRuns(() => {
+      seed3();
+      assert.throws(
+        () => chart.verifySourceRow('r3', 'web_search · results'),
+        (e: any) => e.code === 'source_not_found',
+      );
+    });
+  });
+
+  t.test('값이 없는 필드면 source_field_empty', () => {
+    withTempRuns(() => {
+      seed3();
+      assert.throws(
+        () => chart.verifySourceRow('r3', 'get_user_metrics · totals.없는값'),
+        (e: any) => e.code === 'source_field_empty',
+      );
+    });
+  });
+
+  t.test('경계 — MCP 접두어가 붙은 도구 이름도 받는다', () => {
+    withTempRuns(() => {
+      seed3();
+      assert.deepEqual(chart.verifySourceRow('r3', 'mcp__ops__get_user_metrics · totals.signups'),
+        { tool: 'get_user_metrics', field: 'totals.signups' });
+    });
+  });
+});

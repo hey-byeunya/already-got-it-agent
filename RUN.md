@@ -8,8 +8,9 @@
 ## 구성
 
 ```
-mcp-server/     도메인 도구 7개, stdio MCP 서버 (구현은 여기 한 곳)
+mcp-server/     도메인 도구 9개, stdio MCP 서버 (구현은 여기 한 곳)
 app/            Next.js — 화면, 루프 래퍼, 승인 게이트, 실행 기록
+agent/          Agent SDK 루프 래퍼 + CLI 실행기 (`node dist/src/run.js`)
 fixtures/       평가·캡처용 운영 스냅샷 4개 (정답 포함)
 evidence/       실행 화면 · 실행 기록 · 결과 파일 · 검증 기록
 ```
@@ -17,7 +18,13 @@ evidence/       실행 화면 · 실행 기록 · 결과 파일 · 검증 기록
 ## 실행
 
 ```sh
-TODO: 설치와 실행 명령
+# 도구 서버·에이전트 빌드
+cd mcp-server && npm install && npm run build
+cd ../agent && npm install && npm run build
+# 화면 (http://localhost:3010)
+cd ../app && npm install && npm run dev
+# 화면 없이 한 편 (픽스처)
+cd ../agent && node dist/src/run.js --fixture f2-deploy-fail
 ```
 
 브라우저에서 `http://localhost:3000`을 연다.
@@ -25,7 +32,8 @@ TODO: 설치와 실행 명령
 Claude Code에서 같은 MCP 서버를 붙여 쓰려면 `.mcp.json`에 등록한다 (확장① 증거).
 
 ```sh
-TODO: .mcp.json 등록 예시와 확인 명령
+cat .mcp.json   # already-got-it-ops 등록 확인
+# Claude Code에서 /mcp → 도구 9개가 뜨는지 확인한다
 ```
 
 ## 환경변수
@@ -41,9 +49,56 @@ TODO: .mcp.json 등록 예시와 확인 명령
 | `GITHUB_ALLOWED_REPOS` | 허용 저장소 목록. 밖은 도구가 거절 | 가능 |
 | `NEXT_PUBLIC_SUPABASE_URL` | 데이터 소스 | 가능 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 집계 RPC 접근 | 가능 |
+| `OPS_OPENCODE_BIN` | opencode 엔진의 바이너리 경로 (기본 `opencode`) | 가능 |
+| `OPS_OPENCODE_MODEL` | opencode 엔진 기본 모델 (예: `google/gemini-3.5-flash-lite`) | 가능 |
 
 - Supabase `service_role` 키는 **어디에도 쓰지 않는다.** 집계는 `security definer` RPC로만 접근한다.
 - `GITHUB_TOKEN`은 **issue 읽기·생성·닫기 범위만** 준다. 저장소 쓰기·삭제 권한을 주지 않는다.
+
+## opencode 엔진 — Claude 크레딧이 바닥나면
+
+시작 화면의 엔진 선택에서 `opencode`를 고르면 Claude Agent SDK 대신
+`opencode run --format json`으로 같은 브리핑을 돈다. MCP `ops` 서버는
+`OPENCODE_CONFIG_CONTENT`로 그때그때 붙인다 — 저장소에 `opencode.json`을 두지 않는다.
+
+- 인증·모델은 opencode 쪽 설정을 따른다 (`opencode auth login`).
+  모델은 시작 화면에서 무료 목록(`GET /api/opencode-models`, 단가표 기준 무료 판정) 중 고른다.
+  직접 지정하려면 `OPS_OPENCODE_MODEL` (예: `google/gemini-3.5-flash-lite`).
+  `GOOGLE_API_KEY`만 있고 `GOOGLE_GENERATIVE_AI_API_KEY`가 없으면 같은 값을 이어 준다 (실측).
+- 질문 대기·승인 대기가 없다. 이슈 생성·되돌리기 2개는 끄고, 파일 쓰기·셸도 막는다.
+  이슈 제안은 브리핑 본문에 적힌다.
+- 사용량은 `step_finish` 합계다. 없으면 `usage_known: false`로 표시한다.
+- 실측 (2026-09-10): `opencode mcp list`에서 `ops` connected 확인.
+  도구 이름은 `ops_도구` 형태라 `ops_create_github_issue` 토글로 끈다.
+
+## live 실행 — 실제 API로 브리핑 한 편
+
+평가는 픽스처로 재현하지만, 실제 운영에서는 이 모드로 돈다.
+
+```sh
+cd agent && OPS_MODE=live node dist/src/run.js --run-id live-YYYYMMDD
+```
+
+실행 전 확인 (하나라도 빠지면 읽기 축이 `확인 못 함`이 된다):
+
+- [ ] `.env.local`에 `VERCEL_API_TOKEN`·`VERCEL_PROJECT_ID`·`GITHUB_TOKEN`·
+  `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_ANON_KEY`·`OPS_METRICS_TOKEN`이 있는가
+- [ ] `supabase/ops_metrics.sql`을 Supabase SQL Editor에서 실행했는가.
+  안 하면 `get_user_metrics`가 `rpc_not_created`로 죽고 사용자 지표 축 전체가 빈다
+- [ ] 실제 쓰기를 원하지 않으면 `OPS_ALLOW_LIVE_WRITES=0`인가 (기본값).
+  승인 없이 돌리려면 `--approve`를 붙이지 않는다 — 쓰기 제안은 거절 기록으로 남는다
+
+첫 live 실행 (2026-09-10, `live-t1`, 구독 로그인, 승인 없음):
+
+- `done (success)` — 도구 호출 24회, 실행 346.7초, 비용 $0.7940 추정(구독이라 미청구).
+  카드 6장 + PNG 6장 + ZIP(`cards/*.png` + `SOURCES.md`) 전부 열림.
+- Vercel 배포 0건 · GitHub 이슈·커밋·PR 0건 · 보안 권고 3종(next critical RCE 2건 포함).
+- Supabase RPC 미생성이라 사용자 지표 축은 `확인 못 함` — SQL 실행이 남은 사람 몫이다.
+  → **해소 (2026-09-10)**: SQL 실행 후 `smoke-live` 3번이 집계 반환 확인.
+  7일 series + totals + 직전 기간 비교값, `unavailable_fields: []`, 원시 행 없음.
+  이번 기간 전부 0, 직전 기간 활성 사용자 1 — 실제 0이지 결측이 아니다.
+- 지어낸 근거 카드가 `source_not_found`로 거절된 뒤 모델이 내용을 바꿔 완성했다 (P1-7(a) live 증거).
+- 이슈 생성 제안 2건은 승인 없이 거절됐고 `permission_denials` 2건이 기록에 남았다.
 
 ## 픽스처 실행 모드
 
@@ -54,7 +109,8 @@ TODO: .mcp.json 등록 예시와 확인 명령
   대상이 픽스처 사본이다. **화면에 이 사실을 표시한다.**
 
 ```sh
-TODO: 픽스처 모드 실행 명령
+cd agent && node dist/src/run.js --fixture f2-deploy-fail
+# --approve 를 붙이면 쓰기 도구 승인을 허용한다 (픽스처라 실제 저장소는 안 바뀐다)
 ```
 
 ## 실행 전 확인
@@ -70,18 +126,18 @@ TODO: 픽스처 모드 실행 명령
 
 로컬 실행에서 이 기준으로 동작을 확인한다.
 
-> **픽스처 4개 중, 사람 개입 지점 외의 중단 없이 내보내기까지 도달한 것이 TODO개 이상.**
+> **픽스처 4개 전부, 사람 개입 지점 외의 중단 없이 내보내기까지 도달했다 (E0, 12/12 완주).**
 > 그리고 `f4-sparse`에서는 카드를 억지로 만들지 않고 자료 부족을 알려야 한다.
 
 | 시나리오 | 기대 | 실제 | 통과 |
 |---|---|---|---|
-| `f1-normal` 정상 주간 | 큰 문제 없음을 확인하고 지켜볼 것 위주로 구성 | TODO | TODO |
-| `f2-deploy-fail` 배포 실패 | 실패한 배포를 `지금 손봐야 할 것`으로 1번 카드에 | TODO | TODO |
-| `f3-metric-drop` 지표 급감 | 전주 대비 감소를 근거와 함께 제시. 원인을 단정하지 않음 | TODO | TODO |
-| `f4-sparse` 자료 부족 | **카드를 만들지 않고** 무엇이 부족한지 알림 | TODO | TODO |
+| `f1-normal` 정상 주간 | 큰 문제 없음을 확인하고 지켜볼 것 위주로 구성 | 문제없음 확인, 억지 진단 없음 (3/3) | O |
+| `f2-deploy-fail` 배포 실패 | 실패한 배포를 `지금 손봐야 할 것`으로 1번 카드에 | 빌드 오류 원문 그대로 카드화. 필수신호 0.67이라 1번 배치까지는 장담 못 함 | △ |
+| `f3-metric-drop` 지표 급감 | 전주 대비 감소를 근거와 함께 제시. 원인을 단정하지 않음 | 원인 단정 회피 3/3, 추정 표기 | O |
+| `f4-sparse` 자료 부족 | **카드를 만들지 않고** 무엇이 부족한지 알림 | 4장으로 축소, 결측과 0 구별 (3/3) | O |
 
-- 확인 일자: TODO
-- 확인한 커밋: TODO
+- 확인 일자: 2026-09-09 (E0 기준 실행) · live `live-t1` 2026-09-10은 `RUN.md` live 실행절 참조
+- 확인한 커밋: 741d167 (E0 당시 최신. 이후 변경은 `git log`로 대조한다)
 
 ## 캡처 목록 — 채점 5문항 매핑
 

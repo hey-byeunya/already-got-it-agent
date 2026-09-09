@@ -78,6 +78,17 @@ test('종료 조건', async (t) => {
       assert.equal(limitsFromEnv().maxTurns, DEFAULT_LIMITS.maxTurns, '지정하지 않은 값은 기본값');
     } finally { delete process.env.OPS_MAX_TOOL_CALLS; }
   });
+
+  // 관측한 문제: 오타(OPS_MAX_TOOL_CALLS=abc)가 NaN 상한으로 들어가 모든 비교가
+  // false 가 돼 상한이 조용히 무력화됐다. 숫자가 아니면 기본값으로 돌아간다.
+  await t.test('숫자가 아닌 상한은 기본값으로 돌아간다 — NaN 으로 두지 않는다', () => {
+    process.env.OPS_MAX_TOOL_CALLS = 'abc';
+    try {
+      const got = limitsFromEnv().maxToolCalls;
+      assert.equal(got, DEFAULT_LIMITS.maxToolCalls);
+      assert.ok(Number.isFinite(got), 'NaN 상한이면 비교식이 전부 false 가 된다');
+    } finally { delete process.env.OPS_MAX_TOOL_CALLS; }
+  });
 });
 
 test('사용량 집계', async (t) => {

@@ -12,7 +12,7 @@
 import { mkdirSync, appendFileSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { config, type Mode } from './config.js';
-import { FatalToolError } from './errors.js';
+import { FatalToolError, ToolError } from './errors.js';
 
 export type ToolCallRecord = {
   seq: number;
@@ -38,6 +38,16 @@ export function openRun(runId: string, fixtureId?: string | null): RunMeta {
   const dir = runDir(runId);
   const metaPath = join(dir, 'run.json');
 
+  // 모드 검사는 실행이 열렸는지와 무관하다.
+  // 처음에는 아래 "새로 여는" 분기에만 두었는데, 그러면 첫 호출로 실행이 열린 뒤에는
+  // fixture_id 를 넘겨도 조용히 통과했다 (live 스모크 10번이 이걸 잡았다).
+  // live 모드에서 픽스처를 섞으면 실제 데이터와 스냅샷이 한 실행에 뒤섞인다.
+  if (config.mode === 'live' && fixtureId) {
+    throw new FatalToolError('fixture_in_live_mode',
+      'live 모드에서는 fixture_id 를 쓸 수 없다. 픽스처로 돌리려면 OPS_MODE=fixture 로 시작한다',
+      { run_id: runId, requested: fixtureId });
+  }
+
   if (existsSync(metaPath)) {
     const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as RunMeta;
     // 이미 열린 실행의 픽스처를 도중에 바꾸면 앞선 기록과 근거가 어긋난다.
@@ -58,9 +68,6 @@ export function openRun(runId: string, fixtureId?: string | null): RunMeta {
       'fixture 모드에서는 fixture_id 가 필요하다. 도구 입력에 넘기거나 OPS_FIXTURE_ID 를 설정한다',
       { available_hint: 'f1-normal, f2-deploy-fail, f3-metric-drop, f4-sparse' },
     );
-  }
-  if (config.mode === 'live' && resolved) {
-    throw new FatalToolError('fixture_in_live_mode', 'live 모드에서는 fixture_id 를 쓸 수 없다', {});
   }
 
   const meta: RunMeta = {
@@ -86,10 +93,19 @@ export function record(runId: string, rec: Omit<ToolCallRecord, 'seq' | 'at'>): 
 export function readCalls(runId: string): ToolCallRecord[] {
   const path = join(runDir(runId), 'toolcalls.jsonl');
   if (!existsSync(path)) return [];
-  return readFileSync(path, 'utf8')
-    .split('\n')
-    .filter((l) => l.trim())
-    .map((l) => JSON.parse(l) as ToolCallRecord);
+  const out: ToolCallRecord[] = [];
+  for (const [i, line] of readFileSync(path, 'utf8').split('\n').entries()) {
+    if (!line.trim()) continue;
+    try {
+      out.push(JSON.parse(line) as ToolCallRecord);
+    } catch {
+      // 깨진 줄을 건너뛰면 근거 대조가 조용히 어긋난다. loudly 실패한다.
+      throw new ToolError('toolcalls_corrupted',
+        `실행 기록 ${i + 1}번째 줄이 깨졌다. 수선하지 않고 그대로 두며, 새 run_id 로 시작한다`,
+        { path });
+    }
+  }
+  return out;
 }
 
 /** 이 실행에서 특정 도구가 성공적으로 돌려준 마지막 결과. */

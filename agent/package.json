@@ -37,6 +37,10 @@
     "./tools": {
       "types": "./dist/src/tools.d.ts",
       "default": "./dist/src/tools.js"
+    },
+    "./env": {
+      "types": "./dist/src/env.d.ts",
+      "default": "./dist/src/env.js"
     }
   }
 }

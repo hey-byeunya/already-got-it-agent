@@ -6,7 +6,7 @@
  *
  * 그래서 여기서는 "설정이 어떻든 반드시 참이어야 하는 것"만 검사한다. 두 가지다.
  *
- *  ① 도구 표면 — 도메인 도구 7개와 AskUserQuestion 밖의 도구는 부르지 않는다.
+ *  ① 도구 표면 — 도메인 도구 9개와 AskUserQuestion 밖의 도구는 부르지 않는다.
  *    disallowedTools 가 잘못 설정되거나 bypassPermissions 가 켜져도 이 검사는 남는다.
  *
  *  ② 토큰의 출처 — **모델은 approval_token 을 절대 스스로 넣지 않는다.**
@@ -55,7 +55,7 @@ export function evaluate(toolName: string, toolInput: unknown): HookDenial | nul
     return {
       tool: toolName,
       rule: 'tool_not_allowed',
-      reason: `허용하지 않은 도구다: ${toolName}. 이 앱은 도메인 도구 7개와 AskUserQuestion 만 쓴다.`,
+      reason: `허용하지 않은 도구다: ${toolName}. 이 앱은 도메인 도구 9개와 AskUserQuestion 만 쓴다.`,
     };
   }
 

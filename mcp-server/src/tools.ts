@@ -1,7 +1,9 @@
 /**
- * 도메인 도구 7개. description 은 TOOLS.md 와 같은 계약을 따른다 —
+ * 도메인 도구 9개. description 은 TOOLS.md 와 같은 계약을 따른다 —
  * 설명에 쓴 제약과 함수의 실제 검사가 어긋나면 설명은 아무것도 제한하지 못한다.
  */
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { config, isFixtureMode } from './config.js';
@@ -9,20 +11,63 @@ import { FatalToolError, ToolError } from './errors.js';
 import { fixtureResponse, listFixtureIds } from './fixtures.js';
 import { baseInput, defineTool } from './register.js';
 import { openRun, runPath } from './runlog.js';
-import { consume, appendLog, createdIssueNumbers, isAlreadyReverted } from './approvals.js';
-import { renderBarChart, verifySource, writeSvg, type ChartPoint } from './chart.js';
+import { consume, appendLog, createdIssueNumbers, createdIssueRepo, isAlreadyReverted } from './approvals.js';
+import { renderBarChart, verifySource, verifySourceRow, writeSvg, type ChartPoint } from './chart.js';
+import {
+  CARD_H, CARD_W, composeCard, rasterize, readCardSpecs, sourcesMarkdown, writeZip,
+  type CardSpec,
+} from './cards.js';
+import { systemHealth } from './live/vercel.js';
+import { userMetrics } from './live/supabase.js';
+import { devActivity, createIssue, closeIssue } from './live/github.js';
+import { search as searchAdvisories } from './live/advisories.js';
 
 const period = {
   since: z.string().describe('기간 시작 (ISO 8601)'),
   until: z.string().describe('기간 끝 (ISO 8601)'),
 };
 
-/** live 모드는 아직 붙이지 않았다. 조용히 빈 값을 돌려주는 대신 분명히 알린다. */
-function requireFixtureMode(tool: string): void {
-  if (!isFixtureMode()) {
-    throw new FatalToolError('live_not_implemented',
-      `${tool} 의 실제 API 연결은 아직 구현하지 않았다. OPS_MODE=fixture 로 실행한다`, { tool });
+
+
+/**
+ * live 모드에서 실제 쓰기를 허용하는 별도 스위치.
+ *
+ * 사람의 승인(게이트 ①②③)과 이것은 다른 질문이다.
+ *   승인            = "이 이슈 내용이 맞다"
+ *   OPS_ALLOW_LIVE_WRITES = "실제 공개 저장소를 바꿔도 된다"
+ * live 로 읽기만 돌려 보는 동안 실수로 실제 이슈가 생기지 않게 기본값을 꺼 둔다.
+ */
+function requireLiveWrites(tool: string): void {
+  if (process.env.OPS_ALLOW_LIVE_WRITES !== '1') {
+    throw new FatalToolError('live_writes_disabled',
+      `live 모드지만 실제 쓰기가 꺼져 있다. 실제 저장소를 바꾸려면 OPS_ALLOW_LIVE_WRITES=1 로 실행한다`,
+      { tool, hint: '읽기 도구는 이 스위치와 무관하게 live 로 동작한다' });
   }
+}
+
+/** 이 실행이 render_chart 로 만든 차트 파일들. 오류에 회복 정보로 담는다. */
+function listChartFiles(runId: string): string[] {
+  const dir = runPath(runId, 'charts');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((f) => f.endsWith('.svg')).sort().map((f) => `charts/${f}`);
+}
+
+/** 이 실행에 이미 만들어진 카드 번호들. */
+function listCardNumbers(runId: string): number[] {
+  const dir = runPath(runId, 'cards');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((f) => /^\d+\.json$/.test(f))
+    .map((f) => Number(f.replace('.json', ''))).sort((a, b) => a - b);
+}
+
+/** 승인 기록에서 그 이슈를 만든 저장소를 찾는다. 기록에 없으면 닫지 않는다. */
+function repoOfCreatedIssue(runId: string, issueNumber: number): string {
+  const repo = createdIssueRepo(runId, issueNumber);
+  if (!repo) {
+    throw new ToolError('not_in_approval_log',
+      '승인 기록에 이 이슈를 만든 저장소가 없다', { issue_number: issueNumber });
+  }
+  return repo;
 }
 
 /** 픽스처 응답이 error 를 담고 있으면 그대로 도구 오류로 올린다 — 실패 경로도 재현한다. */
@@ -46,9 +91,9 @@ export function registerAllTools(server: McpServer): void {
       + '시스템 상태를 추측하지 말고 반드시 이 도구로 확인한다. '
       + 'unavailable_fields 에 담긴 항목은 조회하지 못한 것이며 0 이 아니다 — 결측과 0 을 구별해 서술한다.',
     inputSchema: z.object({ ...baseInput, ...period }),
-    handler: ({ run_id }) => {
-      requireFixtureMode('get_system_health');
+    handler: async ({ run_id, since, until }) => {
       const meta = openRun(run_id);
+      if (meta.mode === 'live') return systemHealth({ since, until });
       return passthroughOrThrow('get_system_health', fixtureResponse(meta.fixture_id!, 'get_system_health'));
     },
   });
@@ -62,9 +107,9 @@ export function registerAllTools(server: McpServer): void {
       + 'previous_period_totals 가 있어야 늘었는지 줄었는지 말할 수 있다. null 이면 비교하지 않는다.',
     inputSchema: z.object({ ...baseInput, ...period,
       granularity: z.enum(['day', 'week']).default('day').describe('집계 단위') }),
-    handler: ({ run_id }) => {
-      requireFixtureMode('get_user_metrics');
+    handler: async ({ run_id, since, until, granularity }) => {
       const meta = openRun(run_id);
+      if (meta.mode === 'live') return userMetrics({ since, until }, granularity);
       return passthroughOrThrow('get_user_metrics', fixtureResponse(meta.fixture_id!, 'get_user_metrics'));
     },
   });
@@ -78,14 +123,15 @@ export function registerAllTools(server: McpServer): void {
       + '이슈를 만들거나 닫지는 않는다 — 그건 create_github_issue 와 revert_issue 의 일이다.',
     inputSchema: z.object({ ...baseInput, ...period,
       repo: z.string().describe('owner/name 형식. 허용 목록 밖은 거절된다') }),
-    handler: ({ run_id, repo }) => {
-      requireFixtureMode('get_dev_activity');
+    handler: async ({ run_id, repo, since, until }) => {
+      // 허용 목록 검사가 모드보다 먼저다. live 든 fixture 든 범위 밖은 거절한다.
       if (!config.allowedRepos.includes(repo)) {
         throw new FatalToolError('repo_not_allowed', '허용 목록에 없는 저장소다', {
           repo, allowed: config.allowedRepos,
         });
       }
       const meta = openRun(run_id);
+      if (meta.mode === 'live') return devActivity(repo, { since, until });
       return passthroughOrThrow('get_dev_activity', fixtureResponse(meta.fixture_id!, 'get_dev_activity'));
     },
   });
@@ -101,9 +147,9 @@ export function registerAllTools(server: McpServer): void {
     inputSchema: z.object({ ...baseInput,
       query: z.string().describe('검색어'),
       max_results: z.number().int().min(1).max(10).default(5) }),
-    handler: ({ run_id }) => {
-      requireFixtureMode('web_search');
+    handler: async ({ run_id, query, max_results }) => {
       const meta = openRun(run_id);
+      if (meta.mode === 'live') return searchAdvisories(query, max_results);
       return passthroughOrThrow('web_search', fixtureResponse(meta.fixture_id!, 'web_search'));
     },
   });
@@ -149,6 +195,161 @@ export function registerAllTools(server: McpServer): void {
     },
   });
 
+  // ───────────────────────────────────────────── 8. 카드 합성 (텍스트 레이어)
+  defineTool(server, {
+    name: 'compose_card',
+    description:
+      '카드 한 장을 만든다. 제목·본문·출처가 **각각 별도 텍스트 레이어**로 들어가고, '
+      + '같은 내용이 데이터로도 저장돼 나중에 한 장만 고칠 수 있다. '
+      + 'chart_path 에 render_chart 가 만든 경로를 주면 그 파일을 **읽어서** 끼워 넣는다 — '
+      + '차트를 다시 그리지 않으므로 텍스트만 고칠 때 그림이 바뀌지 않는다. '
+      + 'sources 는 비울 수 없다. 각 행은 "도구 · 필드" 형식이어야 한다. '
+      + '예: "get_user_metrics · totals.active_users". 필드 뒤 괄호 메모는 허용된다. '
+      + 'cover 가 아닌 카드는 각 행이 이번 실행의 실제 호출·값을 가리키는지 대조하고, '
+      + '어긋나면 source_shape_invalid·source_not_found·source_field_empty 로 거절한다. '
+      + 'cover 는 요약 성격이라 빈 것만 본다. '
+      + '글자가 상자에 들어가지 않으면 잘라서 그리지 않고 text_overflow 로 거절한다 — '
+      + '그때는 문안을 줄여 다시 부른다. 같은 card_no 로 다시 부르면 그 카드만 덮어쓴다. '
+      + '표지(kind "cover")의 삽화는 agy 로 미리 만들어 둔 것이 있으면 그것을 쓰고, '
+      + '없으면 로컬 SVG 로 그린다. 어느 쪽인지는 결과의 cover_source 로 밝힌다.',
+    inputSchema: z.object({ ...baseInput,
+      card_no: z.number().int().min(1).max(12).describe('카드 순서. 1부터'),
+      kind: z.enum(['cover', 'metric', 'text']).describe('cover 는 표지, metric 은 차트가 있는 지표 카드'),
+      title: z.string().min(1).describe('제목. 표지는 3줄, 나머지는 3줄까지'),
+      body: z.array(z.string()).default([]).describe('본문 줄들. 차트가 있으면 5줄, 없으면 12줄까지'),
+      sources: z.array(z.string()).min(1)
+        .describe('근거. 예: "get_system_health · summary (배포 2건)". 비울 수 없다'),
+      chart_path: z.string().optional()
+        .describe('render_chart 가 돌려준 svg_path. 이 실행에서 실제로 만든 것이어야 한다'),
+      accent: z.enum(['accent', 'warn', 'bad']).default('accent'),
+    }),
+    handler: ({ run_id, card_no, kind, title, body, sources, chart_path, accent }) => {
+      openRun(run_id);
+
+      // 차트는 **이 실행이 만든 것**만 받는다. 임의 경로를 읽어 카드에 넣지 못한다.
+      // 경로 검사가 근거 대조보다 먼저다 — 통과하지 못한 입력의 파일부터 가린다.
+      let absChart: string | undefined;
+      if (chart_path) {
+        if (!/^charts\/\d+\.svg$/.test(chart_path)) {
+          throw new ToolError('chart_path_not_allowed',
+            'chart_path 는 render_chart 가 돌려준 charts/NN.svg 형태여야 한다', { chart_path });
+        }
+        absChart = runPath(run_id, chart_path);
+        if (!existsSync(absChart)) {
+          throw new ToolError('chart_not_found',
+            '그 차트 파일이 이 실행에 없다. 먼저 render_chart 로 만든다',
+            { chart_path, made_in_this_run: listChartFiles(run_id) });
+        }
+      }
+
+      // 근거 대조는 그 다음이다. cover 는 요약 성격이라 빈 것만 보고, 나머지는 각 행을 대조한다.
+      // 통과하지 못하면 파일을 만들지 않는다.
+      const sourcesVerified = kind === 'cover'
+        ? null
+        : sources.map((row) => verifySourceRow(run_id, row));
+
+      const spec: CardSpec = { card_no, kind, title, body, sources, chart_path, accent };
+      const composed = composeCard(spec, absChart);
+
+      const rel = `cards/${String(card_no).padStart(2, '0')}`;
+      const svgAbs = runPath(run_id, `${rel}.svg`);
+      const { bytes, rendered_ok } = writeSvg(svgAbs, composed.svg);
+      if (!rendered_ok) {
+        throw new ToolError('render_failed', '카드 SVG 가 유효한 파일로 열리지 않는다',
+          { card_no, bytes });
+      }
+      // 텍스트를 데이터로도 남긴다. 한 장만 고칠 때 이 파일만 바뀐다.
+      mkdirSync(dirname(runPath(run_id, `${rel}.json`)), { recursive: true });
+      writeFileSync(runPath(run_id, `${rel}.json`),
+        JSON.stringify({ ...spec, layers: composed.layers }, null, 2));
+
+      return {
+        card_no, svg_path: `${rel}.svg`, json_path: `${rel}.json`, bytes, rendered_ok,
+        layers: {
+          title_lines: composed.layers.title.length,
+          body_lines: composed.layers.body.length,
+          source_lines: composed.layers.source.length,
+        },
+        chart_embedded: composed.chart_embedded,
+        // 각 근거 행이 이번 실행의 실제 호출·값을 가리키는지 대조했는지.
+        // cover 는 대조하지 않아 null 이다.
+        sources_verified: sourcesVerified,
+        // 표지 삽화가 어디서 왔는지 결과로 밝힌다 (agy-asset 또는 local-svg).
+        // cover 가 아니면 null 이다.
+        cover_source: composed.cover_source,
+        // 차트를 다시 그리지 않았음을 결과로 밝힌다 (수용 기준에 그대로 대응한다).
+        chart_rerendered: false,
+        other_cards_untouched: listCardNumbers(run_id).filter((n) => n !== card_no),
+      };
+    },
+  });
+
+  // ─────────────────────────────────────────── 9. 내보내기 (PNG · ZIP · 출처)
+  defineTool(server, {
+    name: 'export_cardnews',
+    description:
+      '만든 카드들을 PNG 로 굽고 ZIP 한 개로 묶는다. 출처 기록(SOURCES.md)도 함께 넣는다. '
+      + '카드를 새로 만들지 않는다 — compose_card 로 만든 것만 내보낸다. '
+      + '변환이 끝났다는 것과 그림이 생겼다는 것은 다르므로 PNG 머리를 직접 읽어 크기를 대조하고, '
+      + 'opened_ok 가 false 인 카드가 있으면 export_incomplete 로 거절한다.',
+    inputSchema: z.object({ ...baseInput,
+      note: z.string().optional().describe('이번 내보내기에 남길 한 줄 메모'),
+    }),
+    handler: ({ run_id, note }) => {
+      const meta = openRun(run_id);
+      const cardsDir = runPath(run_id, 'cards');
+      const specs = readCardSpecs(cardsDir);
+      if (!specs.length) {
+        throw new ToolError('no_cards', '내보낼 카드가 없다. 먼저 compose_card 로 만든다', {});
+      }
+
+      // 번호가 1부터 빠짐없이 이어지는지 본다. 순서는 ZIP 파일명으로 고정된다.
+      const numbers = specs.map((c) => c.card_no).sort((a, b) => a - b);
+      const gaps = numbers.filter((n, i) => n !== i + 1);
+      if (gaps.length) {
+        throw new ToolError('card_numbers_not_contiguous',
+          '카드 번호가 1부터 이어지지 않는다. 빠진 번호를 만들거나 번호를 다시 매긴다',
+          { found: numbers });
+      }
+
+      const rendered = specs.map((c) => {
+        const nn = String(c.card_no).padStart(2, '0');
+        const r = rasterize(runPath(run_id, `cards/${nn}.svg`), runPath(run_id, `png/${nn}.png`));
+        return { card_no: c.card_no, file: `${nn}.png`, ...r };
+      });
+
+      const failed = rendered.filter((r) => !r.opened_ok);
+      if (failed.length) {
+        throw new ToolError('export_incomplete',
+          'PNG 로 열리지 않는 카드가 있다. ZIP 을 만들지 않는다',
+          { failed, expected_size: `${CARD_W}x${CARD_H}` });
+      }
+
+      const sources = sourcesMarkdown(run_id, specs, meta.mode);
+      writeFileSync(runPath(run_id, 'SOURCES.md'), sources);
+
+      const zipName = `cardnews-${run_id}.zip`;
+      const zipBytes = writeZip(runPath(run_id, zipName), [
+        ...rendered.map((r) => ({
+          name: `cards/${r.file}`,
+          data: readFileSync(runPath(run_id, `png/${r.file}`)),
+        })),
+        { name: 'SOURCES.md', data: Buffer.from(sources, 'utf8') },
+      ]);
+
+      return {
+        zip_path: zipName, zip_bytes: zipBytes,
+        cards: rendered.length,
+        entries: [...rendered.map((r) => `cards/${r.file}`), 'SOURCES.md'],
+        png: rendered,
+        sources_path: 'SOURCES.md',
+        opened_ok: true,
+        note: note ?? null,
+        verify_hint: `unzip -l runs/${run_id}/${zipName} 로 순서와 수량을 확인한다`,
+      };
+    },
+  });
+
   // ─────────────────────────────────────────────── 6. 이슈 생성 (쓰기 ⚠️)
   defineTool(server, {
     name: 'create_github_issue',
@@ -169,7 +370,7 @@ export function registerAllTools(server: McpServer): void {
       approval_token: z.string().optional()
         .describe('앱이 사람의 승인을 받은 뒤 발급한 1회용 토큰. 없으면 실행되지 않는다'),
     }),
-    handler: ({ run_id, repo, title, body, labels, source, approval_token }) => {
+    handler: async ({ run_id, repo, title, body, labels, source, approval_token }) => {
       if (!config.allowedRepos.includes(repo)) {
         throw new FatalToolError('repo_not_allowed', '허용 목록에 없는 저장소다', {
           repo, allowed: config.allowedRepos,
@@ -186,8 +387,22 @@ export function registerAllTools(server: McpServer): void {
       consume(run_id, approval_token, 'create_github_issue', repo);
 
       if (!isFixtureMode()) {
-        throw new FatalToolError('live_not_implemented',
-          '실제 GitHub 쓰기는 아직 구현하지 않았다', { tool: 'create_github_issue' });
+        // 사람의 승인을 받았어도 여기서 한 번 더 막는다. 승인은 "이 내용이 맞다"는
+        // 확인이지 "실제 공개 저장소에 써도 된다"는 확인이 아니다. 그 둘을 분리한다.
+        requireLiveWrites('create_github_issue');
+        const created = await createIssue(repo, { title, body, labels });
+        appendLog(run_id, {
+          at: new Date().toISOString(),
+          tool: 'create_github_issue',
+          target: repo,
+          created: { issue_number: created.number, repo },
+        });
+        return {
+          number: created.number, repo, created: true, url: created.url,
+          state: created.state, simulated: false,
+          note: 'live 모드다. 실제 이슈가 만들어졌다',
+          title, body_length: body.length, labels, source,
+        };
       }
 
       // fixture 모드: 실제 저장소를 바꾸지 않는다. 번호만 부여해 승인 기록에 남긴다.
@@ -222,7 +437,7 @@ export function registerAllTools(server: McpServer): void {
       reason: z.string().min(1).describe('왜 되돌리는지. 실행 기록에 남는다'),
       approval_token: z.string().optional(),
     }),
-    handler: ({ run_id, issue_number, reason, approval_token }) => {
+    handler: async ({ run_id, issue_number, reason, approval_token }) => {
       // 대상 제한이 토큰 검사보다 먼저다. 승인받아도 범위 밖은 못 닫는다.
       const allowed = createdIssueNumbers(run_id);
       if (!allowed.includes(issue_number)) {
@@ -237,8 +452,19 @@ export function registerAllTools(server: McpServer): void {
       consume(run_id, approval_token, 'revert_issue', String(issue_number));
 
       if (!isFixtureMode()) {
-        throw new FatalToolError('live_not_implemented',
-          '실제 GitHub 쓰기는 아직 구현하지 않았다', { tool: 'revert_issue' });
+        requireLiveWrites('revert_issue');
+        // 어느 저장소의 이슈인지는 승인 기록에서 가져온다. 입력으로 받지 않는다 —
+        // 받으면 승인 기록에 있는 번호로 **다른** 저장소의 이슈를 닫을 수 있다.
+        const repo = repoOfCreatedIssue(run_id, issue_number);
+        const closed = await closeIssue(repo, issue_number, reason);
+        appendLog(run_id, {
+          at: new Date().toISOString(),
+          tool: 'revert_issue',
+          target: String(issue_number),
+          reverted: { issue_number },
+        });
+        return { number: closed.number, repo, state: closed.state, reverted: true,
+                 reason, url: closed.url, simulated: false };
       }
 
       appendLog(run_id, {

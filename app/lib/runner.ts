@@ -5,27 +5,22 @@
  * CLI 에서는 스크립트가, 여기서는 사람이 화면에서 결정한다.
  */
 import 'server-only';
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runBriefing } from 'already-got-it-ops-agent/engine';
 import type { Decider, QuestionSpec } from 'already-got-it-ops-agent/gate';
+import { loadEnvLocal } from 'already-got-it-ops-agent/env';
 import { limitsFromEnv } from 'already-got-it-ops-agent/limits';
+import { startOpencode } from './opencode';
 import { FIXTURES_DIR, MCP_ENTRY, PROJECT_ROOT, RUNS_DIR } from './paths';
 import * as store from './store';
 
 let envLoaded = false;
-/** .env.local 을 읽는다. 이미 설정된 환경변수는 덮어쓰지 않는다. */
-function loadEnvLocal(): void {
+/** .env.local 을 읽는다. 파서는 agent/src/env.ts 한 곳에만 있다. */
+function loadEnv(): void {
   if (envLoaded) return;
   envLoaded = true;
-  const p = resolve(PROJECT_ROOT, '.env.local');
-  if (!existsSync(p)) return;
-  for (const line of readFileSync(p, 'utf8').split('\n')) {
-    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (!m) continue;
-    const [, k, v] = m;
-    if (k && process.env[k] === undefined) process.env[k] = (v ?? '').replace(/^["']|["']$/g, '');
-  }
+  loadEnvLocal(PROJECT_ROOT);
 }
 
 export type CredentialSource = 'api_key' | 'auth_token' | 'stored_login';
@@ -40,7 +35,7 @@ export type CredentialSource = 'api_key' | 'auth_token' | 'stored_login';
  * 어느 쪽인지는 비용이 어느 지갑에서 빠지는지를 결정하므로 화면에 표시한다.
  */
 export function credentialSource(): CredentialSource {
-  loadEnvLocal();
+  loadEnv();
   if (process.env.ANTHROPIC_API_KEY) return 'api_key';
   if (process.env.ANTHROPIC_AUTH_TOKEN) return 'auth_token';
   return 'stored_login';
@@ -79,12 +74,21 @@ export type StartOptions = {
   fixtureId: string | null;
   goal: string;
   resumeSessionId?: string;
+  engine?: 'claude' | 'opencode';
+  model?: string;
 };
 
 /** 실행을 백그라운드로 시작한다. 응답은 기다리지 않는다. */
 export function start(opts: StartOptions): void {
-  loadEnvLocal();
-  const { runId, fixtureId, goal, resumeSessionId } = opts;
+  loadEnv();
+  const { runId, fixtureId, goal, resumeSessionId, engine, model } = opts;
+
+  // opencode 엔진은 별도 분기로 돈다 — SDK 게이트·질문 대기가 없는 경로다.
+  if (engine === 'opencode' && !resumeSessionId) {
+    store.update(runId, (s) => { s.status = 'planning'; });
+    startOpencode({ runId, fixtureId, goal, model });
+    return;
+  }
 
   const childEnv: Record<string, string> = {
     OPS_MODE: process.env.OPS_MODE ?? 'fixture',

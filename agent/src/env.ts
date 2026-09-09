@@ -1,0 +1,44 @@
+/**
+ * `.env.local` 로더. 세 실행기가 공유한다 — CLI(run.ts) · 평가(eval/run.ts) · 화면(runner.ts).
+ *
+ * 세 곳에 같은 정규식이 복사돼 있었다. 복사본은 고칠 때 한 곳이 빠진다.
+ *
+ * 규칙:
+ *   - 이미 설정된 환경변수는 덮어쓰지 않는다 (실행 환경이 우선이다)
+ *   - 빈 줄·`#` 주석 줄은 건너뛴다
+ *   - 값은 첫 `=` 뒤 전부다 (`=` 를 포함한 값도 깨지지 않는다)
+ *   - 감싸는 따옴표 한 겹만 벗긴다. 짝이 맞을 때만 (`"a'b` 는 그대로 둔다)
+ */
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+/** 한 줄을 파싱한다. 주석·빈 줄·키가 아니면 null. */
+export function parseEnvLine(line: string): [string, string] | null {
+  const t = line.trim();
+  if (!t || t.startsWith('#')) return null;
+  const eq = t.indexOf('=');
+  if (eq <= 0) return null;
+  const k = t.slice(0, eq).trim();
+  let v = t.slice(eq + 1).trim();
+  if (!/^[A-Z0-9_]+$/.test(k)) return null;
+  if (v.length >= 2
+    && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) {
+    v = v.slice(1, -1);
+  }
+  return [k, v];
+}
+
+/**
+ * `.env.local` 을 읽어 비어 있는 환경변수만 채운다.
+ * @param dir `.env.local` 이 있는 폴더 (보통 저장소 루트)
+ */
+export function loadEnvLocal(dir: string): void {
+  const p = resolve(dir, '.env.local');
+  if (!existsSync(p)) return;
+  for (const line of readFileSync(p, 'utf8').split('\n')) {
+    const parsed = parseEnvLine(line);
+    if (!parsed) continue;
+    const [k, v] = parsed;
+    if (process.env[k] === undefined) process.env[k] = v;
+  }
+}

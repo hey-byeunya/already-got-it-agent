@@ -8,6 +8,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { appendFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { withTempRuns } from './helpers.js';
 import * as approvals from '../src/approvals.js';
 import * as runlog from '../src/runlog.js';
@@ -94,6 +96,30 @@ test('승인 게이트', async (t) => {
         () => approvals.consume('r2', t1.token, 'create_github_issue', 'owner/repo'),
         (e: any) => e.code === 'approval_required',
         'r1 의 토큰이 r2 에서 통해서는 안 된다',
+      );
+    });
+  });
+
+  // 관측한 문제: 승인 기록·실행 기록이 깨지면 JSON.parse 가 그대로 터져
+  // unexpected_error·크래시로 갔다. 깨진 파일로 승인 판정을 내리지 않는다.
+  t.test('깨진 approvals.json 은 approvals_corrupted 로 거절한다', async () => {
+    withTempRuns((runsDir) => {
+      runlog.openRun('r-broken', 'f1-normal');
+      writeFileSync(join(runsDir, 'r-broken', 'approvals.json'), '{깨진 파일');
+      assert.throws(
+        () => approvals.consume('r-broken', 'apr_아무거나', 'create_github_issue', 'owner/repo'),
+        (e: any) => e.code === 'approvals_corrupted',
+      );
+    });
+  });
+
+  t.test('깨진 toolcalls.jsonl 은 toolcalls_corrupted 로 거절한다', async () => {
+    withTempRuns((runsDir) => {
+      runlog.openRun('r-broken2', 'f1-normal');
+      appendFileSync(join(runsDir, 'r-broken2', 'toolcalls.jsonl'), '{깨진 줄}\n');
+      assert.throws(
+        () => runlog.readCalls('r-broken2'),
+        (e: any) => e.code === 'toolcalls_corrupted',
       );
     });
   });

@@ -12,7 +12,9 @@
     "start": "node dist/src/index.js",
     "check": "node --test \"dist/test/*.test.js\"",
     "smoke": "node scripts/smoke.mjs",
-    "verify": "npm run build && npm run check && npm run smoke"
+    "verify": "npm run build && npm run check && npm run smoke",
+    "smoke-live": "node scripts/smoke-live.mjs",
+    "generate-cover": "node scripts/generate-cover.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",

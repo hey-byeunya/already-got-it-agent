@@ -16,9 +16,12 @@ export function GET() {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({})) as { fixture_id?: string; goal?: string; focus?: string };
+  const body = await req.json().catch(() => ({})) as
+    { fixture_id?: string; goal?: string; focus?: string; engine?: string; model?: string };
   const fixtureId = body.fixture_id ?? null;
   const runId = `web-${Date.now().toString(36)}`;
+  const engine = body.engine === 'opencode' ? 'opencode' : 'claude';
+  const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : undefined;
 
   const goal = body.goal?.trim() || (
     `이번 주 「이미 있어」 운영 브리핑 카드뉴스를 만들어 줘. 기간은 최근 7일이다.`
@@ -28,7 +31,7 @@ export async function POST(req: Request) {
     + ` 손봐야 할 것이 있으면 create_github_issue 를 호출해 이슈 생성을 제안해라.`
   );
 
-  store.createRun({ runId, fixtureId, goal });
-  start({ runId, fixtureId, goal });
+  store.createRun({ runId, fixtureId, goal, engine });
+  start({ runId, fixtureId, goal, engine, ...(model ? { model } : {}) });
   return NextResponse.json({ run_id: runId }, { status: 201 });
 }

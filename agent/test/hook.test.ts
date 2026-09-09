@@ -44,14 +44,14 @@ test('PreToolUse 훅 — 허용 목록 밖 도구', async (t) => {
     assert.equal((out.hookSpecificOutput as Record<string, unknown>)?.permissionDecision, 'deny');
   });
 
-  await t.test('경계 — 도메인 도구 7개와 AskUserQuestion 은 통과시킨다', async () => {
+  await t.test('경계 — 도메인 도구 9개와 AskUserQuestion 은 통과시킨다', async () => {
     for (const tool of ALLOWED_TOOL_NAMES) {
       const { out, seen } = await callHook(tool, { run_id: 'r1' });
       assert.equal(out.hookSpecificOutput, undefined, `${tool} 은 훅이 판단하지 않아야 한다`);
       assert.equal(out.continue, true);
       assert.equal(seen.length, 0);
     }
-    assert.equal(ALLOWED_TOOL_NAMES.length, 8, '읽기 5 + 쓰기 2 + AskUserQuestion');
+    assert.equal(ALLOWED_TOOL_NAMES.length, 10, '읽기 7 + 쓰기 2 + AskUserQuestion');
   });
 });
 

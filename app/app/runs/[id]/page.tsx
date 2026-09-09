@@ -8,6 +8,7 @@ type Trace = { seq: number; at: string; kind: string; label: string; detail?: st
 type Question = { question: string; header: string; options: { label: string; description: string }[] };
 type State = {
   run_id: string; fixture_id: string | null; status: string; goal: string;
+  engine?: 'claude' | 'opencode';
   session_id?: string; trace: Trace[];
   pending_question: { question_id: string; version: number; questions: Question[] } | null;
   pending_approval: { approval_id: string; version: number; tool: string; summary: Record<string, unknown> } | null;
@@ -73,7 +74,9 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
         <span className={`badge ${s.status}`}>{s.status}</span>
       </div>
       <p className="sub">
-        픽스처 {s.fixture_id ?? '실제'} · {s.live ? '이 서버가 실행 중' : '이 서버가 들고 있지 않음'}
+        픽스처 {s.fixture_id ?? '실제'} · 엔진 {s.engine ?? 'claude'}
+        {s.engine === 'opencode' && ' (질문·승인 없이 진행, 이슈 도구는 꺼짐)'}
+        {' · '}{s.live ? '이 서버가 실행 중' : '이 서버가 들고 있지 않음'}
         {' · '}<Link href="/">목록</Link>
       </p>
 

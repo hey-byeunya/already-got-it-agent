@@ -14,7 +14,8 @@ import { resolve } from 'node:path';
 import { FIXTURES_DIR } from './helpers.js';
 
 const WRITE_TOOLS = ['create_github_issue', 'revert_issue'];
-const READ_TOOLS = ['get_system_health', 'get_user_metrics', 'get_dev_activity', 'web_search', 'render_chart'];
+const READ_TOOLS = ['get_system_health', 'get_user_metrics', 'get_dev_activity', 'web_search',
+  'render_chart', 'compose_card', 'export_cardnews'];
 
 type Tool = { name: string; description?: string; _meta?: Record<string, unknown>;
               annotations?: Record<string, unknown>; inputSchema?: unknown };
@@ -70,7 +71,7 @@ test('도구 표면', async (t) => {
   const tools = await listTools();
   const byName = new Map(tools.map((x) => [x.name, x]));
 
-  await t.test('도구 7개가 모두 노출된다', () => {
+  await t.test('도구 9개가 모두 노출된다', () => {
     assert.deepEqual(
       tools.map((x) => x.name).sort(),
       [...READ_TOOLS, ...WRITE_TOOLS].sort(),
@@ -105,5 +106,8 @@ test('도구 표면', async (t) => {
     assert.match(byName.get('render_chart')!.description!, /source/);
     assert.match(byName.get('create_github_issue')!.description!, /승인/);
     assert.match(byName.get('revert_issue')!.description!, /임의의 이슈를 닫을 수 없다/);
+    // 카드 도구도 제약을 설명에 담아야 한다 — 설명과 검사가 어긋나면 설명은 아무것도 제한하지 않는다.
+    assert.match(byName.get('compose_card')!.description!, /잘라서 그리지 않고/);
+    assert.match(byName.get('export_cardnews')!.description!, /opened_ok/);
   });
 });

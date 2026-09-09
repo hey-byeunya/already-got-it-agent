@@ -49,6 +49,8 @@ export type UsageView = {
 export type RunState = {
   run_id: string;
   fixture_id: string | null;
+  /** 어느 엔진으로 도는가. opencode 는 Claude 크레딧 없이 별도 인증·모델로 돈다. */
+  engine: 'claude' | 'opencode';
   status: RunStatus;
   created_at: string;
   updated_at: string;

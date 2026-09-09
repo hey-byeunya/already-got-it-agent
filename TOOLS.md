@@ -1,4 +1,4 @@
-# TOOLS — 도구 7개
+# TOOLS — 도구 9개
 
 도구는 `mcp-server/`에 **독립 stdio MCP 서버**로 한 번만 구현하고, 앱은 Agent SDK의 `mcpServers`
 옵션으로, Claude Code는 `.mcp.json`으로 같은 서버를 붙여 쓴다 (`DECISIONS.md` D13).
@@ -10,6 +10,8 @@
 | `get_dev_activity` | GitHub API | ❌ | 본인 저장소만 | ❌ | — |
 | `web_search` | 검색 | ❌ | — | ❌ | — |
 | `render_chart` | ❌ (앱 내부) | ❌ | — | ❌ | — |
+| `compose_card` | ❌ (앱 내부) | ❌ | `runs/{run_id}/` 아래만 쓰기 | ❌ | — |
+| `export_cardnews` | ❌ (앱 내부) | ❌ | `runs/{run_id}/` 아래만 읽기·쓰기 | ❌ | — |
 | `create_github_issue` | GitHub API | ✅ | issue 생성만 | ❌ | **필수** |
 | `revert_issue` | GitHub API | ✅ | **승인 기록에 있는 이슈만** 닫기 | ❌ | **필수** |
 
@@ -30,7 +32,14 @@
    직접 붙어도 막힌다.
 
 토큰 규약: 앱이 사람의 승인을 받은 뒤 발급하고, 대상 도구·대상 리소스·만료 시각을 함께 기록한다.
-한 번 쓰면 소멸한다. 토큰이 없거나·만료됐거나·다른 리소스를 향하면 `approval_required` 오류를 반환한다.
+한 번 쓰면 소멸한다. 서버는 어긋난 경우를 코드로 구분한다 (`API_SPEC.md` 승인 토큰 규약과 동일).
+
+| 상황 | 서버 응답 |
+|---|---|
+| 토큰 없음 | `approval_required` |
+| 만료됨 | `approval_expired` |
+| 다른 도구·다른 대상 | `approval_scope_mismatch` |
+| 이미 사용됨 | `token_already_used` — **두 번 실행하지 않는다** |
 
 ## 오류 규약
 
@@ -68,6 +77,10 @@
 ```
 
 - `unavailable_fields`는 **플랜이나 권한 때문에 읽지 못한 항목**을 담는다. 빈 값을 0으로 내리지 않는다.
+- live에서 배포 `id`·`created_at`을 모르면 `null`이다. `'(id 없음)'` 같은 자리 문자열을 넣지 않는다 —
+  모델이 사실로 읽는다. `commit_sha`·`build_error`도 모르면 `null`이다.
+- 목록이 100건으로 꽉 차면 `truncated: true`가 붙는다. 그 뒤는 잘렸을 수 있으므로
+  합계를 정확한 전체로 서술하지 않는다.
 - **실패 규칙**: 인증 실패 → 즉시 중단, 토큰 확인 안내. 조회 실패 → 1회 재시도, 그래도 실패하면
   이 축을 `확인 못 함`으로 표시하고 나머지 축으로 계속한다(대체 경로 있음).
 - **빈 결과**: 기간 내 배포가 없는 것은 오류가 아니다. "배포 없음"도 브리핑할 가치가 있는 사실이다.
@@ -117,6 +130,7 @@
 - **실패 규칙**: 인증 실패 → 즉시 중단. 레이트 리밋 → 남은 시간과 함께 `rate_limited` 반환,
   이 축을 `확인 못 함`으로. 저장소 없음 → 즉시 중단(설정 오류다).
 - 허용된 저장소 목록 밖의 `repo`는 거절한다(`repo_not_allowed`).
+- 목록이 페이지 상한에 꽉 차면 `truncated: true`가 붙는다. 잘린 수를 정확한 합계로 서술하지 않는다.
 
 ## 4. `web_search`
 
@@ -161,7 +175,58 @@
 - **실패 규칙**: 해당 카드에만 오류와 재시도 버튼을 붙인다. 승인된 스토리보드와 다른 카드 결과는
   유지한다. 3회 실패하면 그 카드를 차트 없이 진행할지 묻는다.
 
-## 6. `create_github_issue` ⚠️ 쓰기
+## 6. `compose_card`
+
+> 카드 한 장을 만든다. 제목·본문·출처가 **각각 별도 텍스트 레이어**로 들어가고,
+> 같은 내용이 데이터로도 저장돼 나중에 한 장만 고칠 수 있다.
+> `chart_path`에 `render_chart`가 만든 경로를 주면 그 파일을 **읽어서** 끼워 넣는다 —
+> 차트를 다시 그리지 않으므로 텍스트만 고칠 때 그림이 바뀌지 않는다.
+> `sources`는 비울 수 없다. 어느 도구의 어느 값에서 온 문장인지 적는다.
+> 글자가 상자에 들어가지 않으면 잘라서 그리지 않고 `text_overflow`로 거절한다.
+
+```json
+// 입력
+{ "card_no": 2, "kind": "metric", "title": "...", "body": ["..."],
+  "sources": ["get_user_metrics · totals"], "chart_path": "charts/02.svg" }
+
+// 출력
+{ "card_no": 2, "svg_path": "cards/02.svg", "json_path": "cards/02.json",
+  "rendered_ok": true, "chart_embedded": true, "chart_rerendered": false,
+  "cover_source": null }
+```
+
+- 표지(`kind: "cover"`)의 삽화는 agy로 미리 만들어 둔 것(`assets/cover.svg`)이 있으면
+  그것을 쓰고, 없으면 로컬 SVG로 그린다. 어느 쪽인지는 `cover_source`
+  (`agy-asset`·`local-svg`)로 밝힌다. `cover`가 아니면 `null`이다.
+- `chart_path`는 `render_chart`가 돌려준 `charts/NN.svg` 형태만 받는다. 임의 경로는
+  `chart_path_not_allowed`로, 없는 파일은 `chart_not_found`로 거절한다.
+- **실패 규칙**: 같은 `card_no`로 다시 부르면 그 카드만 덮어쓴다. 다른 카드 결과는 유지한다.
+- `sources` 각 행은 `"도구 · 필드"` 형식이다. cover가 아닌 카드는 각 행이 이번 실행의
+  실제 호출·값을 가리키는지 대조하고, 어긋나면 `source_shape_invalid`·`source_not_found`·
+  `source_field_empty`로 거절한다. 존재 여부까지만 본다 — 값이 문장 내용과 의미상
+  이어지는지는 사람이 검수에서 본다 (`EVAL.md` 근거 미표기율은 수동 지표).
+  cover(표지)는 요약 성격이라 빈 것만 본다.
+
+## 7. `export_cardnews`
+
+> 만든 카드들을 PNG로 굽고 ZIP 한 개로 묶는다. 출처 기록(`SOURCES.md`)도 함께 넣는다.
+> 카드를 새로 만들지 않는다 — `compose_card`로 만든 것만 내보낸다.
+
+```json
+// 입력
+{ "note": "이번 주 브리핑" }
+
+// 출력
+{ "zip_path": "cardnews-{run_id}.zip", "cards": 6,
+  "entries": ["cards/01.png", "…", "SOURCES.md"], "opened_ok": true }
+```
+
+- 번호가 1부터 빠짐없이 이어지지 않으면 `card_numbers_not_contiguous`로 거절한다.
+- PNG 머리를 직접 읽어 크기를 대조하고, `opened_ok`가 false인 카드가 있으면
+  `export_incomplete`로 거절한다 — 그때는 ZIP을 만들지 않는다.
+- **실패 규칙**: `unzip -l`·`unzip -t`로 순서·수량·온전함을 직접 확인한다.
+
+## 8. `create_github_issue` ⚠️ 쓰기
 
 > 브리핑에서 발견한 문제를 저장소 이슈로 남긴다. 사용자가 카드에서 "이건 이슈로 남기자"를
 > 승인했을 때만 호출된다. **에이전트는 이 도구를 직접 실행하지 않는다** — 제안만 만들고
@@ -178,14 +243,15 @@
 ```
 
 - `_meta["anthropic/requiresUserInteraction"]` 선언 → allow 규칙이 있어도 항상 승인 콜백으로 떨어진다.
-- **`approval_token` 없거나 무효하면 `approval_required`로 거절한다.** 서버가 검사하므로 앱을
-  우회해도 막힌다.
+- **`approval_token` 검사는 서버가 한다.** 없으면 `approval_required`, 만료됐으면
+  `approval_expired`, 다른 도구·대상이면 `approval_scope_mismatch`로 거절한다.
+  앱을 우회해도 막힌다.
 - `labels`는 허용 목록 안에서만. 임의 라벨을 만들지 않는다.
 - 생성한 이슈 번호는 **이 실행의 승인 기록에 저장**된다. `revert_issue`의 대상 범위가 된다.
 - **실패 규칙**: 레이트 리밋 → 사람에게 알리고 대기. 권한 부족 → 즉시 중단하고 PAT 범위 안내.
   중복 제출(같은 토큰 재사용) → `token_already_used`로 거절하고 **이슈를 두 번 만들지 않는다.**
 
-## 7. `revert_issue` ⚠️ 쓰기 (확장)
+## 9. `revert_issue` ⚠️ 쓰기 (확장)
 
 > 이 실행이 승인 기록으로 만든 이슈를 닫아 되돌린다. **승인 기록에 없는 이슈 번호는 거절한다** —
 > 이 도구로는 임의의 이슈를 닫을 수 없다. 삭제는 하지 않고 닫기만 한다.
@@ -214,5 +280,9 @@
 | 레이트 리밋 | 남은 시간과 함께 반환 | 있음 (읽기) / 대기 (쓰기) |
 | `render_chart` 실패 | 그 카드만 오류 + 재시도. 3회 후 차트 없이 진행 여부 확인 | 있음 |
 | `source` 불일치 | `source_mismatch`로 거절. **지어낸 수치로 차트를 그리지 않는다** | 없음 — 조회부터 다시 |
-| 승인 토큰 없음·무효 | `approval_required`로 거절 | 없음 — 승인부터 |
+| `compose_card` 근거 불일치 | `source_shape_invalid`·`source_not_found`·`source_field_empty`로 거절. **없는 근거로 카드를 만들지 않는다** (cover 제외) | 없음 — 조회부터 다시 |
+| `compose_card` 실패 | `text_overflow`·`chart_not_found` 등. 문안을 줄이거나 차트부터 만든다 | 있음 — 그 카드만 다시 |
+| `export_cardnews` 실패 | `export_incomplete`·`card_numbers_not_contiguous`. ZIP을 만들지 않는다 | 없음 — 카드부터 다시 |
+| 승인 토큰 없음 | `approval_required`로 거절 | 없음 — 승인부터 |
+| 승인 토큰 만료·대상 어긋남 | `approval_expired`·`approval_scope_mismatch`로 거절 | 없음 — 다시 승인부터 |
 | 승인 토큰 재사용 | `token_already_used`로 거절. **두 번 실행하지 않는다** | 없음 |
