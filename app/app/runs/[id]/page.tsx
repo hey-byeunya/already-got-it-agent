@@ -182,8 +182,10 @@ function ExportBar({ runId, ex, cardCount, exporting, busy, onExport, onPreview 
   const made = Boolean(ex.zip) || ex.png.length > 0;
   const stale = made && cardCount > 0 && ex.png.length !== cardCount;
 
+  // 두 버튼은 같은 자리에 번갈아 서므로 크기가 같아야 한다 (.primary 는 더 크고 굵다).
+  // 아직 안 구웠을 때만 --cards 탭과 같은 초록으로 눈에 띄게 한다.
   const button = (
-    <button className={made ? undefined : 'primary'}
+    <button className={made ? undefined : 'go'}
       disabled={busy || exporting || cardCount === 0}
       onClick={onExport}
       title={cardCount === 0 ? '내보낼 카드가 없다' : ''}>
@@ -224,41 +226,28 @@ function ExportBar({ runId, ex, cardCount, exporting, busy, onExport, onPreview 
       {ex.sources && <a href={`${base}/sources`} download>SOURCES.md <span className="fnt">근거 기록</span></a>}
       {ex.png.length > 0 && (
         <span className="mut">
-          카드 PNG {ex.png.length}장{ex.png.length !== cardCount && cardCount > 0
+          카드 {ex.png.length}장{ex.png.length !== cardCount && cardCount > 0
             ? <span className="wrn"> (카드 {cardCount}장 중)</span> : ''}
           {' — '}
+          {/*
+            번호를 누르면 모달로 크게 본다. 내려받기는 모달 안의 ⤓ png 가 한다.
+            썸네일 격자를 따로 두었더니 카드 목록 바로 위에 같은 그림이 두 번 나와
+            화면만 길어졌다 — 격자를 걷어내고 이 줄에 모달을 붙였다.
+          */}
           {ex.png.map((p, i) => (
             <span key={p.card_no}>
               {i > 0 && <span className="fnt"> · </span>}
-              <a href={`${base}/${String(p.card_no).padStart(2, '0')}.png`} download>
+              <button className="linky" onClick={() => onPreview(i)}
+                title={`카드 ${String(p.card_no).padStart(2, '0')} 크게 보기 · ${kb(p.bytes)}`}>
                 {String(p.card_no).padStart(2, '0')}
-              </a>
+              </button>
             </span>
           ))}
+          <span className="fnt"> · 누르면 크게 본다</span>
         </span>
       )}
       </div>
 
-      {/* 미리보기 — 구워진 그림이 실제로 어떻게 나왔는지 본다. */}
-      {ex.png.length > 0 && (
-        <div>
-          <div className="note" style={{ marginBottom: 6 }}>미리보기 — 누르면 원본이 열린다</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8 }}>
-            {ex.png.map((p, i) => {
-              const nn = String(p.card_no).padStart(2, '0');
-              return (
-                <button key={p.card_no} onClick={() => onPreview(i)}
-                  title={`카드 ${nn} · ${kb(p.bytes)}`}
-                  style={{ padding: 0, background: 'transparent', border: 'none' }}>
-                  <img src={`${base}/${nn}.png?inline`} alt={`카드 ${nn} 미리보기`}
-                    style={{ display: 'block', width: '100%', border: '1px solid var(--line-hi)' }} />
-                  <span className="note" style={{ display: 'block', textAlign: 'center' }}>{nn}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1009,10 +998,15 @@ function CardsPane({ cards, charts, runId, links, exports: ex, exporting, busy, 
             <div className="row" style={{ gap: 9, marginBottom: 9, fontSize: 11 }}>
               <span className="cardkind" style={{ background: sev.bg, color: sev.ink }}>{c.severity}</span>
               <span className="mut">card {String(c.card_no).padStart(2, '0')}</span>
-              {ex.png.some((p) => p.card_no === c.card_no) && (
-                <a href={`/api/runs/${runId}/export/${String(c.card_no).padStart(2, '0')}.png`}
-                  download style={{ marginLeft: 'auto' }}>⤓ png</a>
-              )}
+              {(() => {
+                // 같은 그림을 열 길을 하나로 모은다 — 모달 안에 내려받기가 있다.
+                const at = ex.png.findIndex((p) => p.card_no === c.card_no);
+                if (at < 0) return null;
+                return (
+                  <button className="chip" style={{ marginLeft: 'auto' }}
+                    onClick={() => onPreview(at)}>png ↗</button>
+                );
+              })()}
             </div>
             <h3>{linkRefs(c.title, links)}</h3>
             {c.body.length > 0 && (

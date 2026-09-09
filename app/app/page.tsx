@@ -192,7 +192,8 @@ export default function Home() {
     halted: runs.filter((r) => r.status === 'stopped' || r.status === 'interrupted').length,
     failed: runs.filter((r) => r.status === 'failed').length,
   };
-  const rowCols = narrow ? 'minmax(0,1fr) auto' : '190px 168px minmax(0,1fr) 96px';
+  // 삭제는 제 열을 갖는다 — 비용 아래에 얹으면 어느 쪽 숫자인지 헷갈린다.
+  const rowCols = narrow ? 'minmax(0,1fr) auto' : '190px 168px minmax(0,1fr) 88px 62px';
   const lim = data?.limits;
   const live = data?.mode === 'live';
 
@@ -240,6 +241,7 @@ export default function Home() {
               }}>
                 <span>RUN</span><span>STATUS</span><span>RESULT</span>
                 <span style={{ textAlign: 'right' }}>COST</span>
+                <span style={{ textAlign: 'right' }}>DEL</span>
               </div>
             )}
 
@@ -280,21 +282,21 @@ export default function Home() {
                         <button className="chip" onClick={() => void removeRun(r.run_id)}
                           style={confirmDelete === r.run_id
                             ? { borderColor: 'var(--danger)', color: 'var(--danger-ink)' } : undefined}>
-                          {confirmDelete === r.run_id ? '정말 지운다' : 'del'}
+                          {confirmDelete === r.run_id ? '확인 — 한 번 더' : 'del'}
                         </button>
                       </span>
                     </span>
                   ) : (
                     <>
                       <span className="prose" style={{ fontSize: 12.5, color: 'var(--text)' }}>{r.result}</span>
+                      <span style={{ textAlign: 'right' }}>{cost}</span>
                       <span style={{ textAlign: 'right' }}>
-                        {cost}
-                        <br />
                         <button className="chip" onClick={() => void removeRun(r.run_id)}
+                          title={confirmDelete === r.run_id ? '한 번 더 누르면 지운다' : '이 실행을 지운다'}
                           style={confirmDelete === r.run_id
-                            ? { marginTop: 4, borderColor: 'var(--danger)', color: 'var(--danger-ink)' }
-                            : { marginTop: 4 }}>
-                          {confirmDelete === r.run_id ? '정말 지운다' : 'del'}
+                            ? { borderColor: 'var(--danger)', color: 'var(--danger-ink)' }
+                            : undefined}>
+                          {confirmDelete === r.run_id ? '확인' : 'del'}
                         </button>
                       </span>
                     </>

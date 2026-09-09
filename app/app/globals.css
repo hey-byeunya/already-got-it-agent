@@ -141,6 +141,17 @@ button.tab {
 button.tab[aria-pressed='true'] { background: var(--accent); color: var(--on-accent); }
 .tabs { display: flex; border: 1px solid var(--line); }
 
+/*
+ * 초록 채움 버튼. `--cards` 탭이 켜졌을 때와 같은 색이고,
+ * 크기는 기본 버튼 그대로다 — 옆에 서는 「다시 내보내기」와 나란히 보여야 한다.
+ * .primary 는 더 크고 굵어서 같은 줄에 두면 층이 진다.
+ */
+button.go {
+  background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+  font-weight: 500;
+}
+button.go:hover:not(:disabled) { background: var(--accent-hi); border-color: var(--accent-hi); }
+
 /* 세그먼트 — 상태 전환용 작은 토글 */
 button.seg {
   font-size: 11px; padding: 5px 9px;
@@ -149,6 +160,13 @@ button.seg {
 button.seg[aria-pressed='true'] {
   background: var(--seg); border-color: var(--accent); color: var(--ink);
 }
+
+/* 링크처럼 보이지만 페이지를 떠나지 않는 버튼. */
+button.linky {
+  font: inherit; padding: 0; background: transparent; border: none;
+  color: var(--accent); cursor: pointer;
+}
+button.linky:hover { color: var(--accent-hi); }
 
 button.dot {
   width: 10px; height: 10px; padding: 0;
@@ -169,10 +187,21 @@ button.opt .d {
 
 /* ─────────────────────────────────────────── 입력 */
 
-select, input[type=text] {
+select, input[type=text], input[type=date] {
   font: inherit; font-size: 12px; width: 100%;
   padding: 8px 10px; border-radius: 0;
   border: 1px solid var(--line-hi); background: var(--deep); color: var(--text);
+}
+
+/*
+ * 날짜 칸은 두 개가 300px 사이드바에 나란히 들어간다.
+ * 기본 크기로는 브라우저가 그리는 «2026. 09. 02.» 와 달력 아이콘이 칸을 넘겨 깨진다.
+ */
+input[type=date] {
+  font-size: 10.5px; padding: 6px 6px; min-width: 0;
+}
+input[type=date]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(.45); margin-left: 0; padding: 0; cursor: pointer;
 }
 select:focus, input[type=text]:focus, button:focus-visible {
   outline: 1px solid var(--accent); outline-offset: 1px;
