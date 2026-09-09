@@ -1,0 +1,5 @@
+{
+  "fixtureId": "f4-sparse",
+  "attempt": 1,
+  "error": "Error: ENOENT: no such file or directory, open '/Users/eunya/Documents/ai-agent/project/already-got-it-agent/agent/fixtures/snapshots/f4-sparse.json'"
+}
