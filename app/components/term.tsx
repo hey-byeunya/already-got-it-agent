@@ -49,12 +49,13 @@ export function StatusBadge({ status, pendingApproval }: {
   );
 }
 
-export function SectionHead({ label, right, tone = 'ok' }: {
-  label: string; right?: React.ReactNode; tone?: Tone;
+export function SectionHead({ label, right, tone = 'ok', hint }: {
+  label: string; right?: React.ReactNode; tone?: Tone; hint?: string;
 }) {
   return (
     <div className="spread" style={{ marginBottom: 12 }}>
-      <span className="sechead" style={{ color: TONE_VAR[tone] }}>{label}</span>
+      <span className="sechead" style={{ color: TONE_VAR[tone] }}
+        {...(hint ? { 'data-tip': hint, 'aria-label': `${label}: ${hint}` } : {})}>{label}</span>
       {right}
     </div>
   );
@@ -100,14 +101,22 @@ export function Bar({ value, max, tone = 'mut' }: {
   );
 }
 
-/** 게이지 한 줄 — 이름 · 분수 · 막대. */
-export function Gauge({ label, value, max, unit, prefix, digits, tone }: {
+/**
+ * 게이지 한 줄 — 이름 · 분수 · 막대.
+ *
+ * 단서는 `hint` 로 받아 **툴팁**에 둔다. 게이지 아래에 문단으로 깔면
+ * 계기 세 칸 중 하나만 설명이 길어져 눈이 그리로 쏠린다.
+ */
+export function Gauge({ label, value, max, unit, prefix, digits, tone, hint }: {
   label: string; value: number | null; max: number;
-  unit?: string; prefix?: string; digits?: number; tone?: Tone;
+  unit?: string; prefix?: string; digits?: number; tone?: Tone; hint?: string;
 }) {
   const show = (n: number) => `${prefix ?? ''}${fmt(n, digits)}${unit ?? ''}`;
   return (
-    <div>
+    // tabIndex 를 열어 키보드로도 툴팁에 닿게 한다 — 마우스만 되는 설명은 반쪽이다.
+    <div {...(hint
+      ? { 'data-tip': hint, 'data-tip-align': 'right', 'aria-label': `${label}: ${hint}`, tabIndex: 0 }
+      : {})}>
       <div className="spread" style={{ marginBottom: 4 }}>
         <span className="mut">{label}</span>
         <span className={value === null ? 'wrn' : 'ink'}>

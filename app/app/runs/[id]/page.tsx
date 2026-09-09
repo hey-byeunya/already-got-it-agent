@@ -558,6 +558,9 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
               label={meter === 'budget'
                 ? '[ BUDGET ] limits'
                 : known ? '[ USAGE ] cost_is_estimate: true' : '[ USAGE ] usage_known: false'}
+              hint={meter === 'budget' && lim
+                ? `반복 ${lim.maxTurns}회 상한은 SDK 가 검사한다 — 이 화면은 실제 턴 수를 관측할 수 없어 게이지로 그리지 않는다`
+                : undefined}
               right={
                 <span className="row" style={{ gap: 6 }}>
                   <button className="dot" title="BUDGET" aria-pressed={meter === 'budget'} onClick={() => setMeter('budget')} />
@@ -568,17 +571,16 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
             {meter === 'budget' ? (
               lim ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 11.5 }}>
+                  {/* 단서는 문단이 아니라 각 줄의 툴팁에 둔다 (마우스를 올리면 나온다). */}
                   <Gauge label="cost (est)" value={known && u ? u.total_cost_usd : null}
-                    max={lim.maxBudgetUsd} prefix="$" digits={2} tone="ok" />
-                  <Gauge label="tool calls" value={toolCalls} max={lim.maxToolCalls} />
-                  <Gauge label="fresh input" value={freshInput} max={lim.maxInputTokens} />
-                  <Gauge label="wall clock" value={Math.round(elapsed)} max={lim.maxElapsedSeconds} unit="s" />
-                  <div className="note">
-                    cost 는 SDK 로컬 추정값 · 종료 조건 판정용.
-                    {' '}fresh input 은 캐시 읽기를 뺀 값이다 — 상한이 그 기준이다.
-                    <br />반복 {lim.maxTurns}회 상한은 <span className="ink">SDK 가 검사한다</span> —
-                    이 화면은 실제 턴 수를 관측할 수 없어 게이지로 그리지 않는다.
-                  </div>
+                    max={lim.maxBudgetUsd} prefix="$" digits={2} tone="ok"
+                    hint="SDK 로컬 추정값 · 종료 조건 판정용. 실제 청구액이 아니다" />
+                  <Gauge label="tool calls" value={toolCalls} max={lim.maxToolCalls}
+                    hint="이 실행이 부른 도구 수. 상한에 닿으면 stopped 로 멈춘다" />
+                  <Gauge label="fresh input" value={freshInput} max={lim.maxInputTokens}
+                    hint="캐시 읽기를 뺀 입력 토큰 · 상한이 재는 값이다" />
+                  <Gauge label="wall clock" value={Math.round(elapsed)} max={lim.maxElapsedSeconds} unit="s"
+                    hint="엔진이 잰 실행 시간 · 사람을 기다린 시간은 빠져 있다" />
                 </div>
               ) : <div className="note">상한이 기록되지 않았다 — 이 실행은 상한을 남기기 전 버전이다.</div>
             ) : (
@@ -591,7 +593,10 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                     <div className="stat"><div className="k">cost (est)</div><div className="v">${u.total_cost_usd.toFixed(4)}</div></div>
                   </div>
                   <div className="note">
-                    cost 는 SDK <span className="ink">클라이언트 측 추정값</span> · 실제 청구액과 다를 수 있다
+                    <span data-tip="SDK 가 번들된 단가표로 로컬 계산한다. 단가 변경·모델 미인식에서 실제 청구와 어긋날 수 있다"
+                      aria-label="cost 는 SDK 가 번들된 단가표로 로컬 계산한 추정값이다">
+                      cost 는 <span className="ink">추정값</span>이다
+                    </span>
                   </div>
                 </div>
               ) : (
