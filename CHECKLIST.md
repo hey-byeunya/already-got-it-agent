@@ -15,7 +15,7 @@
 | 4. 사람 개입·관찰 가능성·평가 | `EVAL.md` + 실행 로그 화면 + `evidence/` | ✅ 초안 |
 | 5. 배포 및 새로운 시도 | `RUN.md` — 실행·수용기준·캡처목록 / 확장 2건 | ✅ 초안 |
 
-문서는 초안이 끝났다. 이제 구현이다.
+문서 초안과 MCP 서버(fixture 모드)가 끝났다. 다음은 앱(루프·화면)이다.
 
 ---
 
@@ -54,17 +54,22 @@
 
 ## 3. MCP 서버 — 채점 2번 · 확장①
 
-- [ ] `mcp-server/` stdio MCP 서버 골격
-- [ ] `get_system_health` — `unavailable_fields` 채우기 포함
-- [ ] `get_user_metrics` — 집계 RPC 호출
-- [ ] `get_dev_activity` — 허용 저장소 목록 밖은 거절
-- [ ] `web_search`
-- [ ] `render_chart` — **`source` 대조 + `rendered_ok` 확인**
-- [ ] `create_github_issue` ⚠️ — `_meta requiresUserInteraction` + `approval_token` 검사
-- [ ] `revert_issue` ⚠️ — 승인 기록에 있는 이슈만
-- [ ] 도구별 실패 규칙 구현 (재시도 / 대체 경로 / 중단)
-- [ ] `.mcp.json` 등록 → **Claude Code에서 붙여 동작 확인** ← 확장① 증거, 캡처
-- [ ] 토큰 없이 쓰기 도구 호출 → **서버가 거절하는 것 확인** ← 캡처
+**fixture 모드 구현 완료.** `cd mcp-server && npm run verify` 로 전부 확인된다.
+
+- [x] `mcp-server/` stdio MCP 서버 골격 (`@modelcontextprotocol/server` v2 + zod)
+- [x] `get_system_health` — `unavailable_fields` 그대로 전달
+- [x] `get_user_metrics` — 집계값만, `previous_period_totals` 포함
+- [x] `get_dev_activity` — 허용 저장소 목록 밖은 `repo_not_allowed` 로 거절
+- [x] `web_search`
+- [x] `render_chart` — **`source` 대조 + `rendered_ok` 확인**
+- [x] `create_github_issue` ⚠️ — `_meta requiresUserInteraction` + `approval_token` 검사
+- [x] `revert_issue` ⚠️ — 승인 기록에 있는 이슈만
+- [x] 도구별 실패 규칙 (즉시 중단 / 대체 경로 / 픽스처로 실패 재현)
+- [x] 자체 검사 35개 — 승인 게이트·근거 대조·되돌리기 범위·결측 구별·도구 표면
+- [x] 스모크 12단계 — stdio 로 붙어 전체 흐름 확인
+- [x] `.mcp.json` 등록 (저장소 루트)
+- [ ] **Claude Code에서 붙여 동작 확인** ← 확장① 증거, 캡처
+- [ ] 실제 API 연결 (`OPS_MODE=live`) — 토큰 발급 후. 지금은 `live_not_implemented` 로 분명히 알린다
 
 ## 4. 루프와 승인 — 채점 2·3번
 
