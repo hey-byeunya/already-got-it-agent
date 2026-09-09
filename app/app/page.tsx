@@ -361,7 +361,7 @@ export default function Home() {
             ) : (
               <>
                 <div className="note" style={{ marginBottom: 6 }}>
-                  --model <span className="ok">무료 목록</span>
+                  --model <span className="ok">free</span>
                 </div>
                 {freeModels.length > 0 ? (
                   <select value={model} onChange={(e) => setModel(e.target.value)}>
@@ -371,7 +371,6 @@ export default function Home() {
                   <div className="note">{modelsNote ?? '불러오는 중…'}</div>
                 )}
                 <div className="note" style={{ margin: '8px 0 12px' }}>
-                  단가표가 정본이다 — input·output 이 둘 다 0 인 것만 담았다.
                   <br /><span className="wrn">주의</span> opencode 모드는 질문 대기·승인 없이 끝까지 간다.
                   이슈 생성·되돌리기는 쓸 수 없고 제안은 본문에 적힌다.
                   {live && <><br /><span className="wrn">live 모드</span>라 사람이 보지 않는 채로
@@ -477,7 +476,8 @@ function ModeBadge({ data }: { data: Listing | null }) {
   return (
     <span className="row" style={{ gap: 8, fontSize: 11 }}>
       {/* 설명은 툴팁으로 내린다 — 머리줄은 값만 남긴다. 뜻은 계기 게이지와 같은 규칙이다. */}
-      <span className="badge" style={{ color: live ? 'var(--warn)' : 'var(--accent)' }}
+      {/* 켜져 있는 쪽을 초록으로 읽는다 — 배지는 「지금 무엇으로 도는가」를 말한다. */}
+      <span className="badge" style={{ color: live ? 'var(--accent)' : 'var(--warn)' }}
         data-tip={live ? '실제 API 를 부른다.' : '외부 API 를 부르지 않는다 · 스냅샷을 읽는다.'}
         data-tip-below="" tabIndex={0}>
         <i />{live ? 'LIVE' : 'FIXTURE'}
@@ -487,9 +487,9 @@ function ModeBadge({ data }: { data: Listing | null }) {
           <span className="ink">{data.allowed_repos.join(', ')}</span>
           {' · write '}
           {data.live_writes
-            ? <span className="bad" data-tip="승인하면 진짜 이슈가 만들어진다."
+            ? <span className="ok" data-tip="승인하면 진짜 이슈가 만들어진다."
                 data-tip-below="" data-tip-align="right" tabIndex={0}>on</span>
-            : <span className="ok" data-tip="승인해도 이슈를 만들지 않는다."
+            : <span className="bad" data-tip="승인해도 이슈를 만들지 않는다."
                 data-tip-below="" data-tip-align="right" tabIndex={0}>off</span>}
         </span>
       )}

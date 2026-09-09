@@ -452,9 +452,9 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
               {/* 설명은 툴팁으로 내린다 — 값만 남긴다. 머리줄 모드 배지와 같은 규칙이다. */}
               {' · '}live{' '}
               {s.fixture_id
-                ? <span className="ok" data-tip="외부 API 를 부르지 않았다 · 스냅샷을 읽었다."
+                ? <span className="wrn" data-tip="외부 API 를 부르지 않았다 · 스냅샷을 읽었다."
                     tabIndex={0}>false</span>
-                : <span className="wrn" data-tip="실제 API 를 불렀다." tabIndex={0}>true</span>}
+                : <span className="ok" data-tip="실제 API 를 불렀다." tabIndex={0}>true</span>}
               {!dead && <Cursor />}
             </div>
           </div>
