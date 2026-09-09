@@ -20,8 +20,24 @@ type Listing = {
   credential_source: 'api_key' | 'auth_token' | 'stored_login';
   limits: RunLimits;
   mode: 'fixture' | 'live';
+  live_writes: boolean;
   allowed_repos: string[];
 };
+
+type Range = '7d' | '15d' | 'custom';
+
+const DAY = 86_400_000;
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const daysAgo = (n: number) => iso(new Date(Date.now() - n * DAY));
+
+/** 목록에 쓰는 짧은 시각. 초까지는 필요 없다. */
+function stamp(v: string): string {
+  const t = Date.parse(v);
+  if (!Number.isFinite(t)) return v;
+  const d = new Date(t);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 type Engine = 'claude' | 'opencode';
 
@@ -62,6 +78,11 @@ export default function Home() {
   const [freeModels, setFreeModels] = useState<{ id: string; name: string }[]>([]);
   const [modelsNote, setModelsNote] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const [range, setRange] = useState<Range>('7d');
+  const [since, setSince] = useState(daysAgo(7));
+  const [until, setUntil] = useState(iso(new Date()));
+  /** 두 번 눌러야 지운다. 첫 번째 누름을 여기 담아 둔다. */
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [narrow, setNarrow] = useState(false);
@@ -110,7 +131,16 @@ export default function Home() {
     try { localStorage.setItem(FAV_KEY, JSON.stringify(next)); } catch { /* 저장 실패는 무시 */ }
   }
 
+  /** 고른 기간. 프리셋은 누를 때마다 «지금» 기준으로 다시 계산한다. */
+  function period(): { since: string; until: string } {
+    if (range === '7d') return { since: daysAgo(7), until: iso(new Date()) };
+    if (range === '15d') return { since: daysAgo(15), until: iso(new Date()) };
+    return { since, until };
+  }
+
   async function startRun(opts: { fixture_id: string; focus?: string; engine: Engine; model?: string }) {
+    const p = period();
+    if (p.since >= p.until) { setError('기간이 뒤집혔다 — 시작이 끝보다 앞이어야 한다'); return; }
     setStarting(true); setError(null);
     const res = await fetch('/api/runs', {
       method: 'POST',
@@ -120,11 +150,31 @@ export default function Home() {
         focus: opts.focus || undefined,
         engine: opts.engine,
         model: opts.model || undefined,
+        ...p,
       }),
     });
     const body = await res.json();
     if (!res.ok) { setError(body.message ?? body.error); setStarting(false); return; }
     location.href = `/runs/${body.run_id}`;
+  }
+
+  /** 실행을 지운다. 첫 누름은 확인, 두 번째 누름이 실제로 지운다. */
+  async function removeRun(runId: string) {
+    if (confirmDelete !== runId) {
+      setConfirmDelete(runId);
+      // 다른 데를 누르거나 시간이 지나면 확인 상태를 푼다 — 실수로 두 번 눌리지 않게.
+      setTimeout(() => setConfirmDelete((c) => (c === runId ? null : c)), 4000);
+      return;
+    }
+    setConfirmDelete(null); setError(null);
+    const res = await fetch(`/api/runs/${runId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({})) as { message?: string; error?: string };
+      setError(b.message ?? b.error ?? '지우지 못했다');
+      return;
+    }
+    const d = await fetch('/api/runs').then((r) => r.json()) as Listing;
+    setData(d);
   }
 
   function addFavorite() {
@@ -210,6 +260,11 @@ export default function Home() {
                     <span className="mut" style={{ fontSize: 11 }}>
                       {r.engine}{r.fixture_id ? ` · ${r.fixture_id}` : ' · live'}
                     </span>
+                    <br />
+                    <span className="fnt" style={{ fontSize: 10.5 }}>
+                      생성 {stamp(r.created_at)}
+                      {r.period && ` · 기간 ${r.period.since} ~ ${r.period.until}`}
+                    </span>
                   </span>
                   <span style={{ justifySelf: 'start' }}><StatusBadge status={r.status} /></span>
                   {narrow ? (
@@ -220,12 +275,28 @@ export default function Home() {
                       gap: 12, alignItems: 'baseline',
                     }}>
                       <span className="prose" style={{ fontSize: 12, color: 'var(--muted)' }}>{r.result}</span>
-                      {cost}
+                      <span className="row" style={{ gap: 8 }}>
+                        {cost}
+                        <button className="chip" onClick={() => void removeRun(r.run_id)}
+                          style={confirmDelete === r.run_id
+                            ? { borderColor: 'var(--danger)', color: 'var(--danger-ink)' } : undefined}>
+                          {confirmDelete === r.run_id ? '정말 지운다' : 'del'}
+                        </button>
+                      </span>
                     </span>
                   ) : (
                     <>
                       <span className="prose" style={{ fontSize: 12.5, color: 'var(--text)' }}>{r.result}</span>
-                      <span style={{ textAlign: 'right' }}>{cost}</span>
+                      <span style={{ textAlign: 'right' }}>
+                        {cost}
+                        <br />
+                        <button className="chip" onClick={() => void removeRun(r.run_id)}
+                          style={confirmDelete === r.run_id
+                            ? { marginTop: 4, borderColor: 'var(--danger)', color: 'var(--danger-ink)' }
+                            : { marginTop: 4 }}>
+                          {confirmDelete === r.run_id ? '정말 지운다' : 'del'}
+                        </button>
+                      </span>
                     </>
                   )}
                 </div>
@@ -236,6 +307,30 @@ export default function Home() {
           {/* ─────────────────────── 사이드바 */}
           <div style={{ border: '1px solid var(--line)', background: 'var(--raised)', padding: 16 }}>
             <SectionHead label="[ NEW RUN ]" />
+
+            <div className="note" style={{ marginBottom: 6 }}>--since / --until</div>
+            <div className="row" style={{ gap: 6, marginBottom: 8 }}>
+              {([['7d', '최근 1주일'], ['15d', '최근 15일'], ['custom', '직접 선택']] as const)
+                .map(([k, label]) => (
+                  <button className="seg" key={k} aria-pressed={range === k} onClick={() => setRange(k)}>
+                    {label}
+                  </button>
+                ))}
+            </div>
+            {range === 'custom' ? (
+              <div className="row" style={{ gap: 6, marginBottom: 14, flexWrap: 'nowrap' }}>
+                <input type="date" value={since} max={until}
+                  onChange={(e) => setSince(e.target.value)} style={{ flex: 1 }} />
+                <span className="fnt">~</span>
+                <input type="date" value={until} min={since}
+                  onChange={(e) => setUntil(e.target.value)} style={{ flex: 1 }} />
+              </div>
+            ) : (
+              <div className="note" style={{ marginBottom: 14 }}>
+                {range === '7d' ? daysAgo(7) : daysAgo(15)} ~ {iso(new Date())}
+                <span className="fnt"> · 시작할 때 다시 계산한다</span>
+              </div>
+            )}
 
             <div className="note" style={{ marginBottom: 6 }}>--axis</div>
             <input type="text" value={focus} onChange={(e) => setFocus(e.target.value)}
@@ -365,7 +460,13 @@ function ModeBadge({ data }: { data: Listing | null }) {
       </span>
       <span className="mut">
         {live
-          ? <>실제 API 를 부른다 · 대상 <span className="ink">{data.allowed_repos.join(', ')}</span></>
+          ? <>
+              실제 API 를 부른다 · 대상 <span className="ink">{data.allowed_repos.join(', ')}</span>
+              {' · 쓰기 '}
+              {data.live_writes
+                ? <span className="bad">켜짐 — 승인하면 진짜 이슈가 만들어진다</span>
+                : <span className="ok">꺼짐</span>}
+            </>
           : '외부 API 를 부르지 않는다 — 스냅샷을 읽는다'}
       </span>
       <span className="fnt">OPS_MODE</span>

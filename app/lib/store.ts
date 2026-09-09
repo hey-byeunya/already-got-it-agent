@@ -9,7 +9,7 @@
  * 세션 ID 만 저장한다고 화면 상태와 작업이 복구되지는 않는다 — 그래서 질문·답변·단계·
  * 실행 로그를 전부 디스크에 남기고, 재시작 뒤에는 중단 상태를 보여준 뒤 재개하게 한다.
  */
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { RUNS_DIR } from './paths';
 import type { PendingApproval, PendingQuestion, RunState, RunStatus, TraceEvent, RunRow } from './types';
@@ -76,6 +76,7 @@ export function listRuns(): RunRow[] {
       // 사용량을 못 받은 실행은 **모르는 것**이다. 0 으로 적으면 «비용이 안 들었다»가 된다.
       cost: s.usage && s.usage.usage_known ? s.usage.total_cost_usd : null,
       result: resultLine(s, readCards(s.run_id).length),
+      ...(s.period ? { period: s.period } : {}),
     });
   }
   return out.sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -221,5 +222,23 @@ export function submitApproval(runId: string, approvalId: string, version: numbe
   const r = handles.approvalResolver;
   delete handles.approvalResolver;
   r(approved ? { approved: true } : { approved: false, reason: reason ?? '사람이 승인하지 않았다' });
+  return { ok: true };
+}
+
+
+/**
+ * 실행을 지운다 — 기록·카드·PNG·ZIP 까지 폴더째.
+ *
+ * **돌고 있는 실행은 지우지 않는다.** 지우는 동안에도 도구가 그 폴더에 쓰고 있어
+ * 반만 지워진 상태가 남는다. 끝나고 지우게 한다.
+ */
+export function removeRun(runId: string): { ok: true } | { ok: false; error: string; message: string } {
+  if (!isValidRunId(runId)) return { ok: false, error: 'invalid_run_id', message: 'run_id 형식이 잘못됐다' };
+  const dir = join(RUNS_DIR, runId);
+  if (!existsSync(dir)) return { ok: false, error: 'run_not_found', message: '그런 실행이 없다' };
+  if (live.has(runId)) {
+    return { ok: false, error: 'run_is_live', message: '돌고 있는 실행은 지울 수 없다. 끝난 뒤에 지운다' };
+  }
+  rmSync(dir, { recursive: true, force: true });
   return { ok: true };
 }

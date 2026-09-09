@@ -42,3 +42,21 @@ export function loadEnvLocal(dir: string): void {
     if (process.env[k] === undefined) process.env[k] = v;
   }
 }
+
+/**
+ * `.env.local` 의 값을 **파일 그대로** 읽는다. process.env 를 거치지 않는다.
+ *
+ * 왜 따로 필요한가: `loadEnvLocal` 은 이미 설정된 환경변수를 덮어쓰지 않는다.
+ * 그래서 서버가 뜬 뒤 파일을 고치면 process.env 에는 **낡은 값**이 남는다.
+ * 실행 모드처럼 «파일이 정본» 인 설정은 이걸로 읽어야 화면과 실제가 어긋나지 않는다.
+ * (실제로 파일을 fixture 로 바꿨는데 화면이 계속 live 라고 말한 적이 있다.)
+ */
+export function readEnvLocal(dir: string, key: string): string | undefined {
+  const p = resolve(dir, '.env.local');
+  if (!existsSync(p)) return undefined;
+  for (const line of readFileSync(p, 'utf8').split('\n')) {
+    const parsed = parseEnvLine(line);
+    if (parsed && parsed[0] === key) return parsed[1];
+  }
+  return undefined;
+}

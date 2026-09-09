@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { FIXTURES_DIR } from '@/lib/paths';
 import * as store from '@/lib/store';
-import { credentialSource, opsMode, start } from '@/lib/runner';
+import { credentialSource, liveWritesEnabled, opsMode, start } from '@/lib/runner';
 import { limitsFromEnv } from 'already-got-it-ops-agent/limits';
 
 export const runtime = 'nodejs';
@@ -36,27 +36,50 @@ export function GET() {
     credential_source: credentialSource(),
     limits: limitsFromEnv(),
     mode: opsMode(),
+    live_writes: liveWritesEnabled(),
     allowed_repos: (process.env.GITHUB_ALLOWED_REPOS ?? 'hey-byeunya/already-got-it')
       .split(',').map((x) => x.trim()).filter(Boolean),
   });
 }
 
-/** 최근 7일. 모델은 오늘 날짜를 모르므로 지시에 실제 날짜를 박는다. */
-function recentWeek(): { since: string; until: string } {
-  const until = new Date();
-  const since = new Date(until.getTime() - 7 * 86_400_000);
-  return { since: since.toISOString().slice(0, 10), until: until.toISOString().slice(0, 10) };
+const DAY = 86_400_000;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 브리핑이 다룰 기간. 모델은 오늘 날짜를 모르므로 지시에 실제 날짜를 박는다.
+ *
+ * 사람이 고른 값을 그대로 믿지 않는다 — 형식이 아니거나 순서가 뒤집혔으면 기본값으로 돌아간다.
+ * 뒤집힌 기간을 그대로 넘기면 도구가 빈 결과를 주고, 모델은 그것을 «활동 없음» 으로 읽는다.
+ */
+function resolvePeriod(body: { since?: unknown; until?: unknown }):
+  { period: { since: string; until: string }; note: string | null } {
+  const fallback = () => {
+    const until = new Date();
+    const since = new Date(until.getTime() - 7 * DAY);
+    return { since: since.toISOString().slice(0, 10), until: until.toISOString().slice(0, 10) };
+  };
+  const a = typeof body.since === 'string' ? body.since.trim() : '';
+  const b = typeof body.until === 'string' ? body.until.trim() : '';
+  if (!a && !b) return { period: fallback(), note: null };
+  if (!ISO_DATE.test(a) || !ISO_DATE.test(b)) {
+    return { period: fallback(), note: '기간 형식이 YYYY-MM-DD 가 아니라 최근 7일로 되돌렸다' };
+  }
+  if (a >= b) {
+    return { period: fallback(), note: '시작이 끝보다 뒤라 최근 7일로 되돌렸다' };
+  }
+  return { period: { since: a, until: b }, note: null };
 }
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({})) as
-    { fixture_id?: string; goal?: string; focus?: string; engine?: string; model?: string };
+    { fixture_id?: string; goal?: string; focus?: string; engine?: string; model?: string;
+      since?: string; until?: string };
   const fixtureId = body.fixture_id ?? null;
   const runId = `web-${Date.now().toString(36)}`;
   const engine = body.engine === 'opencode' ? 'opencode' : 'claude';
   const model = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : undefined;
   const focus = body.focus?.trim() || undefined;
-  const period = recentWeek();
+  const { period, note: periodNote } = resolvePeriod(body);
 
   const goal = body.goal?.trim() || (
     `이번 주 「이미 있어」 운영 브리핑 카드뉴스를 만들어 줘.`
@@ -69,5 +92,6 @@ export async function POST(req: Request) {
 
   store.createRun({ runId, fixtureId, goal, engine, ...(focus ? { focus } : {}), period });
   start({ runId, fixtureId, goal, engine, ...(model ? { model } : {}) });
-  return NextResponse.json({ run_id: runId }, { status: 201 });
+  return NextResponse.json({ run_id: runId, period, ...(periodNote ? { note: periodNote } : {}) },
+    { status: 201 });
 }

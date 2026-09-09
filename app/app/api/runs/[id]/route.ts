@@ -21,3 +21,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   };
   return NextResponse.json(detail);
 }
+
+
+/** 실행을 지운다. 화면의 「삭제」가 부른다 — 사람이 두 번 눌러야 여기까지 온다. */
+export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const r = store.removeRun(id);
+  if (r.ok) return NextResponse.json({ ok: true });
+  return NextResponse.json(r, { status: r.error === 'run_not_found' ? 404 : 409 });
+}

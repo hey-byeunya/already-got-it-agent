@@ -101,6 +101,70 @@ function webSourcesFor(card: CardView, links: RunLinks): RunLinks['web'] {
 
 const kb = (b: number) => `${Math.round(b / 1024).toLocaleString()}KB`;
 
+/** 사람이 읽을 시각. 초는 버린다. */
+function stamp(v: string): string {
+  const t = Date.parse(v);
+  if (!Number.isFinite(t)) return v;
+  const d = new Date(t);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * 카드 미리보기 모달.
+ *
+ * 새 탭 대신 모달인 이유: 카드를 넘겨 가며 훑는 일이라 탭을 오갈 필요가 없다.
+ * ←/→ 로 넘기고 Esc 로 닫는다 — 키보드만으로도 다 된다.
+ */
+function CardModal({ runId, pages, at, onMove, onClose }: {
+  runId: string;
+  pages: { card_no: number; bytes: number }[];
+  at: number;
+  onMove: (next: number) => void;
+  onClose: () => void;
+}) {
+  const cur = pages[at];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight') onMove(Math.min(pages.length - 1, at + 1));
+      if (e.key === 'ArrowLeft') onMove(Math.max(0, at - 1));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [at, pages.length, onMove, onClose]);
+
+  if (!cur) return null;
+  const nn = String(cur.card_no).padStart(2, '0');
+
+  return (
+    // 바깥을 누르면 닫힌다. 안쪽 클릭이 새어 나가지 않게 멈춘다.
+    <div className="modal" role="dialog" aria-modal="true" aria-label={`카드 ${nn} 미리보기`}
+      onClick={onClose}>
+      <div className="frame-win" onClick={(e) => e.stopPropagation()}>
+        <div className="titlebar">
+          <span className="row" style={{ gap: 10 }}>
+            <Lights />
+            <span className="ink">card {nn}.png</span>
+            <span className="fnt">{kb(cur.bytes)} · {at + 1}/{pages.length}</span>
+          </span>
+          <span className="row" style={{ gap: 6 }}>
+            <button className="chip" disabled={at === 0} onClick={() => onMove(at - 1)}>‹ prev</button>
+            <button className="chip" disabled={at >= pages.length - 1} onClick={() => onMove(at + 1)}>next ›</button>
+            <a href={`/api/runs/${runId}/export/${nn}.png`} download
+              className="chip" style={{ display: 'inline-block' }}>⤓ png</a>
+            <button onClick={onClose}>esc</button>
+          </span>
+        </div>
+        <div className="body">
+          <img src={`/api/runs/${runId}/export/${nn}.png?inline`} alt={`카드 ${nn}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * 카드뉴스 내보내기 — **사람이 누를 때만 굽는다.**
  *
@@ -110,9 +174,9 @@ const kb = (b: number) => `${Math.round(b / 1024).toLocaleString()}KB`;
  *
  * 굽고 난 뒤에야 내려받기와 미리보기가 생긴다 — 디스크에 **실제로 있는 것만** 보여준다.
  */
-function ExportBar({ runId, ex, cardCount, exporting, busy, onExport }: {
+function ExportBar({ runId, ex, cardCount, exporting, busy, onExport, onPreview }: {
   runId: string; ex: ExportView; cardCount: number;
-  exporting: boolean; busy: boolean; onExport: () => void;
+  exporting: boolean; busy: boolean; onExport: () => void; onPreview: (at: number) => void;
 }) {
   const base = `/api/runs/${runId}/export`;
   const made = Boolean(ex.zip) || ex.png.length > 0;
@@ -180,15 +244,16 @@ function ExportBar({ runId, ex, cardCount, exporting, busy, onExport }: {
         <div>
           <div className="note" style={{ marginBottom: 6 }}>미리보기 — 누르면 원본이 열린다</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(96px,1fr))', gap: 8 }}>
-            {ex.png.map((p) => {
+            {ex.png.map((p, i) => {
               const nn = String(p.card_no).padStart(2, '0');
               return (
-                <a key={p.card_no} href={`${base}/${nn}.png?inline`} target="_blank" rel="noreferrer noopener"
-                  title={`카드 ${nn} · ${kb(p.bytes)}`}>
+                <button key={p.card_no} onClick={() => onPreview(i)}
+                  title={`카드 ${nn} · ${kb(p.bytes)}`}
+                  style={{ padding: 0, background: 'transparent', border: 'none' }}>
                   <img src={`${base}/${nn}.png?inline`} alt={`카드 ${nn} 미리보기`}
                     style={{ display: 'block', width: '100%', border: '1px solid var(--line-hi)' }} />
                   <span className="note" style={{ display: 'block', textAlign: 'center' }}>{nn}</span>
-                </a>
+                </button>
               );
             })}
           </div>
@@ -227,6 +292,8 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
   const [page, setPage] = useState(0);
   const [narrow, setNarrow] = useState(false);
   const [copied, setCopied] = useState(false);
+  /** 미리보기 모달이 보고 있는 카드 순번. null 이면 닫힌 상태다. */
+  const [previewAt, setPreviewAt] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeX = useRef<number | null>(null);
 
@@ -394,6 +461,13 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
               live <span className={dead ? 'wrn' : 'ok'}>
                 {dead ? 'false — 이 서버가 들고 있지 않음' : 'true — 이 서버가 실행 중'}
               </span>
+            </span>
+            <span className="fnt">·</span>
+            {/* 언제 만든 브리핑인지. 목록에서 넘어오면 잊기 쉽다. */}
+            <span className="mut">
+              생성 <span className="ink">{stamp(s.created_at)}</span>
+              {s.period && <> · 기간 <span className="ink">{s.period.since} ~ {s.period.until}</span></>}
+              {!s.period && <span className="fnt"> · 기간 기록 없음</span>}
             </span>
           </div>
         </div>
@@ -780,7 +854,8 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
             {view === 'card' ? (
               <CardsPane cards={s.cards} charts={s.charts} runId={s.run_id}
                 links={s.links} exports={s.exports}
-                exporting={s.cards_exporting === true} busy={busy} onExport={() => void exportCards()} />
+                exporting={s.cards_exporting === true} busy={busy} onExport={() => void exportCards()}
+                onPreview={(at) => setPreviewAt(at)} />
             ) : (
               <div style={{ border: '1px solid var(--line)', background: 'var(--raised)' }}>
                 <div className="spread" style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', fontSize: 11.5 }}>
@@ -858,15 +933,20 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
           )}
         </div>
       </div>
+
+      {previewAt !== null && s.exports.png.length > 0 && (
+        <CardModal runId={s.run_id} pages={s.exports.png} at={previewAt}
+          onMove={setPreviewAt} onClose={() => setPreviewAt(null)} />
+      )}
     </main>
   );
 }
 
 /** 카드가 있으면 카드를, 없으면 차트만이라도 보여준다. 둘 다 없으면 왜 없는지 적는다. */
-function CardsPane({ cards, charts, runId, links, exports: ex, exporting, busy, onExport }: {
+function CardsPane({ cards, charts, runId, links, exports: ex, exporting, busy, onExport, onPreview }: {
   cards: CardView[]; charts: { card_no: number; svg_path: string }[];
   runId: string; links: RunLinks; exports: ExportView;
-  exporting: boolean; busy: boolean; onExport: () => void;
+  exporting: boolean; busy: boolean; onExport: () => void; onPreview: (at: number) => void;
 }) {
   const chartOf = (p?: string) => charts.find((c) => c.svg_path === p);
 
@@ -877,7 +957,7 @@ function CardsPane({ cards, charts, runId, links, exports: ex, exporting, busy, 
           right={<span className="note">근거 없는 수치는 카드에 오르지 않는다</span>} />
         <div style={{ padding: '10px 12px', border: '1px solid var(--line)', background: 'var(--raised)' }}>
           <ExportBar runId={runId} ex={ex} cardCount={0}
-          exporting={exporting} busy={busy} onExport={onExport} />
+            exporting={exporting} busy={busy} onExport={onExport} onPreview={onPreview} />
         </div>
         {charts.length === 0 ? (
           <div className="hatch" style={{ padding: '26px 20px', textAlign: 'center' }}>
@@ -919,7 +999,7 @@ function CardsPane({ cards, charts, runId, links, exports: ex, exporting, busy, 
       )}
       <div style={{ padding: '10px 12px', border: '1px solid var(--line)', background: 'var(--raised)' }}>
         <ExportBar runId={runId} ex={ex} cardCount={cards.length}
-          exporting={exporting} busy={busy} onExport={onExport} />
+          exporting={exporting} busy={busy} onExport={onExport} onPreview={onPreview} />
       </div>
       {cards.map((c) => {
         const sev = SEVERITY[c.severity];

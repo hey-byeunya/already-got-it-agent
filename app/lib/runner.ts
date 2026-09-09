@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runBriefing } from 'already-got-it-ops-agent/engine';
 import type { Decider, QuestionSpec } from 'already-got-it-ops-agent/gate';
-import { loadEnvLocal } from 'already-got-it-ops-agent/env';
+import { loadEnvLocal, readEnvLocal } from 'already-got-it-ops-agent/env';
 import { limitsFromEnv } from 'already-got-it-ops-agent/limits';
 import { startOpencode } from './opencode';
 import { FIXTURES_DIR, MCP_ENTRY, PROJECT_ROOT, RUNS_DIR } from './paths';
@@ -37,11 +37,24 @@ export type CredentialSource = 'api_key' | 'auth_token' | 'stored_login';
 /**
  * 지금 어느 모드로 도는가. 새 실행이 fixture 를 읽을지 실제 API 를 부를지 결정한다.
  *
- * `.env.local` 을 읽은 **뒤에** 판정해야 한다 — 그 전에 보면 항상 fixture 로 보인다.
+ * **파일을 매번 다시 읽는다.** process.env 를 보면 서버가 뜰 때의 값이 남아 있어,
+ * `.env.local` 을 fixture 로 바꿔도 화면이 계속 live 라고 말한다 — 실제로 겪었다.
+ * 모드를 틀리게 말하는 배지는 없느니만 못하다.
+ *
+ * 화면 표시와 실제 실행이 **같은 값**을 쓰게 childEnv 도 이 함수를 부른다.
  */
 export function opsMode(): 'fixture' | 'live' {
   loadEnv();
-  return process.env.OPS_MODE?.trim() === 'live' ? 'live' : 'fixture';
+  const fromFile = readEnvLocal(PROJECT_ROOT, 'OPS_MODE');
+  const raw = (fromFile ?? process.env.OPS_MODE ?? '').trim();
+  return raw === 'live' ? 'live' : 'fixture';
+}
+
+/** 실제 쓰기가 켜져 있는가. 승인 창이 「진짜 이슈가 만들어진다」를 말할지 정한다. */
+export function liveWritesEnabled(): boolean {
+  loadEnv();
+  const fromFile = readEnvLocal(PROJECT_ROOT, 'OPS_ALLOW_LIVE_WRITES');
+  return (fromFile ?? process.env.OPS_ALLOW_LIVE_WRITES ?? '').trim() === '1';
 }
 
 export function credentialSource(): CredentialSource {
@@ -106,6 +119,7 @@ export function start(opts: StartOptions): void {
     OPS_FIXTURES_DIR: FIXTURES_DIR,
     GITHUB_ALLOWED_REPOS: process.env.GITHUB_ALLOWED_REPOS ?? 'hey-byeunya/already-got-it',
     ...(fixtureId ? { OPS_FIXTURE_ID: fixtureId } : {}),
+    ...(liveWritesEnabled() ? { OPS_ALLOW_LIVE_WRITES: '1' } : {}),
   };
   // 승인 토큰을 이 프로세스가 쓰고 MCP 서버가 읽는다. 같은 경로를 봐야 한다.
   process.env.OPS_RUNS_DIR = RUNS_DIR;

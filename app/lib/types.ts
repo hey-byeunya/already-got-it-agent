@@ -177,4 +177,6 @@ export type RunRow = {
   cost: number | null;
   /** 한 줄 결과 요약. */
   result: string;
+  /** 브리핑이 다룬 기간. 옛 실행에는 없다. */
+  period?: { since: string; until: string };
 };
