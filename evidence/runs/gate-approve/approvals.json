@@ -1,0 +1,37 @@
+{
+  "tokens": [
+    {
+      "token": "apr_irzir2mny8hmttrrj42",
+      "tool": "create_github_issue",
+      "target": "hey-byeunya/already-got-it",
+      "expires_at": "2026-09-09T07:30:51.074Z",
+      "used_at": "2026-09-09T07:20:51.084Z"
+    },
+    {
+      "token": "apr_426u5nnkp8vmttrrluo",
+      "tool": "revert_issue",
+      "target": "9001",
+      "expires_at": "2026-09-09T07:30:54.624Z",
+      "used_at": "2026-09-09T07:20:54.630Z"
+    }
+  ],
+  "log": [
+    {
+      "at": "2026-09-09T07:20:51.085Z",
+      "tool": "create_github_issue",
+      "target": "hey-byeunya/already-got-it",
+      "created": {
+        "issue_number": 9001,
+        "repo": "hey-byeunya/already-got-it"
+      }
+    },
+    {
+      "at": "2026-09-09T07:20:54.631Z",
+      "tool": "revert_issue",
+      "target": "9001",
+      "reverted": {
+        "issue_number": 9001
+      }
+    }
+  ]
+}

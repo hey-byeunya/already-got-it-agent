@@ -67,8 +67,21 @@ export class UsageAccountant {
             ...(this.known ? {} : { unknown_reason: this.unknownReason }),
         };
     }
-    /** 내가 검사하는 종료 조건용. 누적 입력 토큰. */
-    get accumulatedInputTokens() {
+    /**
+     * 종료 조건용 — **새로 읽은 입력 토큰**만 센다. 캐시 읽기는 제외한다.
+     *
+     * 캐시 읽기는 앞선 맥락을 재사용하는 값싼 경로다(입력 정가의 일부). 에이전트 루프에서는
+     * 턴이 늘수록 빠르게 쌓여서, 신규 입력과 같은 무게로 세면 정상 실행이 상한에 걸린다.
+     * (첫 실제 실행에서 259,455 중 대부분이 캐시 읽기였는데 상한 200,000 에 걸려 중단됐다.)
+     *
+     * 비용 자체는 maxBudgetUsd 가 가격 가중치로 이미 막는다. 이 상한의 몫은
+     * "맥락이 통제 불가로 커지는 것"을 막는 데 있다.
+     */
+    get freshInputTokens() {
+        return this.inputTokens + this.cacheCreate;
+    }
+    /** 참고용 — 캐시 읽기까지 포함한 전체. 화면 표시에만 쓴다. */
+    get allInputTokens() {
         return this.inputTokens + this.cacheRead + this.cacheCreate;
     }
 }

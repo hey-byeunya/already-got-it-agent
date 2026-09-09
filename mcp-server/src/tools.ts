@@ -116,7 +116,9 @@ export function registerAllTools(server: McpServer): void {
       + 'source 필드가 필수다 — 어느 도구의 어느 값을 그리는지 밝혀야 한다. '
       + '직접 입력한 수치나 기억한 수치로는 차트를 그릴 수 없다. data 의 값이 source 가 가리키는 '
       + '결과에 실제로 없으면 source_mismatch 로 거절된다. '
-      + '먼저 해당 조회 도구를 호출한 뒤에 쓴다.',
+      + '먼저 해당 조회 도구를 호출한 뒤에 쓴다. '
+      + 'source.tool 은 짧은 이름(get_user_metrics)이든 붙여 부르는 이름이든 모두 받는다. '
+      + 'source.field 는 숫자를 가리키거나(series[].signups), 숫자들을 담은 객체를 가리켜도 된다(totals).',
     inputSchema: z.object({ ...baseInput,
       card_no: z.number().int().min(1).describe('몇 번째 카드인가'),
       chart_type: z.enum(['bar']).default('bar').describe('현재는 bar 만 지원한다'),

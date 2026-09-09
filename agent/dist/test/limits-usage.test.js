@@ -33,7 +33,28 @@ test('종료 조건', async (t) => {
         tr.noteToolCall('a');
         assert.equal(tr.check(0), null, '번갈아 부르는 것은 진전이 있는 것이다');
     });
-    await t.test('누적 입력 토큰 상한', () => {
+    await t.test('경계 — 같은 도구라도 인자가 다르면 진전이다 (첫 실제 실행에서 막혔던 경우)', () => {
+        const tr = new LimitTracker({ ...DEFAULT_LIMITS, maxSameToolStreak: 3 });
+        // 검색어를 바꿔 가며 web_search 를 네 번: 막힌 게 아니라 일하는 중이다
+        for (const q of ['next.js', 'react', 'supabase', 'tailwind']) {
+            tr.noteToolCall('web_search', { run_id: 'r1', query: q });
+        }
+        assert.equal(tr.check(0), null, '검색어가 다르면 같은 호출이 아니다');
+    });
+    await t.test('같은 도구를 같은 인자로 반복하면 멈춘다', () => {
+        const tr = new LimitTracker({ ...DEFAULT_LIMITS, maxSameToolStreak: 3 });
+        for (let i = 0; i < 4; i += 1) {
+            tr.noteToolCall('web_search', { run_id: 'r1', query: '같은 검색어' });
+        }
+        assert.equal(tr.check(0)?.limit, 'maxSameToolStreak');
+    });
+    await t.test('인자의 키 순서가 달라도 같은 호출로 본다', () => {
+        const tr = new LimitTracker({ ...DEFAULT_LIMITS, maxSameToolStreak: 1 });
+        tr.noteToolCall('t', { a: 1, b: 2 });
+        tr.noteToolCall('t', { b: 2, a: 1 });
+        assert.equal(tr.check(0)?.limit, 'maxSameToolStreak');
+    });
+    await t.test('누적 신규 입력 토큰 상한', () => {
         const tr = new LimitTracker({ ...DEFAULT_LIMITS, maxInputTokens: 100 });
         assert.equal(tr.check(100), null);
         assert.equal(tr.check(101)?.limit, 'maxInputTokens');
@@ -85,6 +106,18 @@ test('사용량 집계', async (t) => {
         assert.equal(s.output_tokens, 80, 'modelUsage 가 있으면 그쪽이 전체다');
         assert.equal(s.total_cost_usd, 0.5);
     });
+    await t.test('경계 — 캐시 읽기는 토큰 상한에 세지 않는다 (첫 실제 실행에서 막혔던 경우)', () => {
+        const a2 = new UsageAccountant();
+        // 신규 입력은 적고 캐시 읽기가 대부분인 전형적인 에이전트 루프
+        a2.observeAssistant(assistant('m1', { input_tokens: 6, cache_read_input_tokens: 174548 }));
+        assert.equal(a2.freshInputTokens, 6, '캐시 읽기는 맥락 재사용이라 상한 대상이 아니다');
+        assert.equal(a2.allInputTokens, 174554, '전체는 화면 표시용으로 따로 센다');
+    });
+    await t.test('캐시 생성은 신규 입력으로 센다', () => {
+        const a2 = new UsageAccountant();
+        a2.observeAssistant(assistant('m1', { input_tokens: 10, cache_creation_input_tokens: 500 }));
+        assert.equal(a2.freshInputTokens, 510);
+    });
     await t.test('④ 크래시 결과는 0 이 아니라 usage_known: false 다', () => {
         const a = new UsageAccountant();
         a.observeAssistant(assistant('m1', { input_tokens: 10 }));
@@ -97,6 +130,16 @@ test('사용량 집계', async (t) => {
         const a = new UsageAccountant();
         a.observeResult({ subtype: 'error_max_budget_usd', total_cost_usd: 0, usage: {} });
         assert.equal(a.snapshot().usage_known, false);
+    });
+    await t.test('종료 조건으로 중단해 result 를 못 받아도 usage_known: false', () => {
+        // 첫 실제 실행에서 캐시 읽기 58,094 토큰을 쓰고도 $0.0000 으로 보고했다.
+        const a2 = new UsageAccountant();
+        a2.observeAssistant(assistant('m1', { input_tokens: 4, cache_read_input_tokens: 58094 }));
+        a2.markNoResult('종료 조건(maxSameToolStreak)으로 중단해 결과 메시지를 받지 못했다');
+        const s2 = a2.snapshot();
+        assert.equal(s2.usage_known, false, '토큰을 썼는데 비용을 0 으로 보고하면 안 된다');
+        assert.match(s2.unknown_reason, /종료 조건/);
+        assert.equal(s2.cache_read_input_tokens, 58094, '아는 값은 그대로 남긴다');
     });
     await t.test('결과 메시지를 아예 못 받으면 usage_known: false', () => {
         const a = new UsageAccountant();

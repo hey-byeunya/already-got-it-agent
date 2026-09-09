@@ -109,3 +109,53 @@ test('render_chart 근거 대조', async (t) => {
     });
   });
 });
+
+/**
+ * 검사: 첫 실제 실행에서 나온 마찰 두 개 (관측된 실패 하나당 검사 하나)
+ */
+import { normalizeToolName } from '../src/chart.js';
+
+test('실제 실행에서 나온 마찰', async (t) => {
+  const METRICS2 = {
+    series: [{ date: '09-02', active_users: 19 }, { date: '09-03', active_users: 18 }],
+    totals: { signups: 17, owned_created: 185, wish_created: 60 },
+  };
+  const seed2 = () => {
+    runlog.openRun('r2', 'f1-normal');
+    runlog.record('r2', { tool: 'get_user_metrics', input: {}, output: METRICS2, ok: true, elapsed_ms: 1 });
+  };
+
+  t.test('source.tool 은 MCP 접두어가 붙어 와도 받는다', () => {
+    assert.equal(normalizeToolName('mcp__ops__get_user_metrics'), 'get_user_metrics');
+    assert.equal(normalizeToolName('get_user_metrics'), 'get_user_metrics');
+    assert.equal(normalizeToolName('mcp__already-got-it-ops__get_dev_activity'), 'get_dev_activity');
+  });
+
+  t.test('접두어가 붙은 이름으로도 근거 대조가 통과한다', () => {
+    withTempRuns(() => {
+      seed2();
+      // 모델이 부르는 이름 그대로 넘겨도 통과해야 한다. 형식 맞추기는 도구의 일이다.
+      chart.verifySource('r2', { tool: 'mcp__ops__get_user_metrics', field: 'series[].active_users' },
+        [{ label: '9/2', value: 19 }]);
+    });
+  });
+
+  t.test('숫자들을 담은 객체(totals)도 근거로 쓸 수 있다', () => {
+    withTempRuns(() => {
+      seed2();
+      chart.verifySource('r2', { tool: 'get_user_metrics', field: 'totals' },
+        [{ label: '가입', value: 17 }, { label: '등록', value: 185 }, { label: '위시', value: 60 }]);
+    });
+  });
+
+  t.test('경계 — 객체를 허용해도 없는 값은 여전히 막는다', () => {
+    withTempRuns(() => {
+      seed2();
+      assert.throws(
+        () => chart.verifySource('r2', { tool: 'get_user_metrics', field: 'totals' },
+          [{ label: '가입', value: 17 }, { label: '지어냄', value: 9999 }]),
+        (e: any) => e.code === 'source_mismatch',
+      );
+    });
+  });
+});

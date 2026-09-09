@@ -10,14 +10,15 @@ import { createGate } from './gate.js';
 import { LimitTracker, limitsFromEnv } from './limits.js';
 import { ShadowGuard } from './shadowguard.js';
 import { systemPrompt } from './prompt.js';
-import { BLOCKED_BUILTINS, MCP_SERVER_KEY, READ_TOOLS, shortName } from './tools.js';
+import { BLOCKED_BUILTINS, MCP_SERVER_KEY, READ_TOOLS, WRITE_TOOLS, shortName } from './tools.js';
 import { UsageAccountant } from './usage.js';
 export async function runBriefing(opts) {
     const limits = opts.limits ?? limitsFromEnv();
     const repo = opts.repo ?? (mcpConfig.allowedRepos[0] ?? 'hey-byeunya/already-got-it');
     const tracker = new LimitTracker(limits);
     const usage = new UsageAccountant();
-    const guard = new ShadowGuard();
+    // 게이트를 반드시 지나야 하는 것은 쓰기 도구다. 읽기 도구의 자동 승인은 의도한 설계다.
+    const guard = new ShadowGuard(WRITE_TOOLS);
     const emit = (e) => opts.onEvent?.(e);
     const gate = createGate({
         runId: opts.runId,
@@ -63,8 +64,8 @@ export async function runBriefing(opts) {
                 },
             },
         });
-        // 게이트가 가려진 채로 실행이 이어지지 않게, 첫 메시지 전에 한 번 확인한다.
-        guard.assertNotShadowed();
+        // 쓰기 게이트가 가려진 채로 실행이 이어지지 않게, 첫 메시지 전에 한 번 확인한다.
+        guard.assertGateIntact();
         for await (const msg of stream) {
             if (msg.type === 'assistant') {
                 usage.observeAssistant(msg);
@@ -76,11 +77,11 @@ export async function runBriefing(opts) {
                     }
                     else if (block.type === 'tool_use') {
                         const tool = String(block.name);
-                        tracker.noteToolCall(tool);
+                        tracker.noteToolCall(tool, block.input);
                         emit({ kind: 'tool_use', tool: shortName(tool), input: block.input });
                     }
                 }
-                const hit = tracker.check(usage.accumulatedInputTokens);
+                const hit = tracker.check(usage.freshInputTokens);
                 if (hit) {
                     stopReason = hit;
                     emit({ kind: 'stopped', reason: hit });
@@ -115,10 +116,15 @@ export async function runBriefing(opts) {
                 sessionId = msg.session_id;
             }
         }
-        if (!sawResult && !stopReason) {
-            usage.markNoResult('결과 메시지를 받지 못했다 (연결 또는 프로세스 실패)');
+        // 결과 메시지를 못 받았으면 비용은 **모르는 것**이다. 종료 조건에 걸려 중단한 경우도 마찬가지다.
+        // 0 으로 적으면 "비용이 안 들었다"고 거짓 보고하게 된다 — 실제로는 토큰을 이미 썼다.
+        // (첫 실제 실행에서 캐시 읽기 58,094 토큰을 쓰고도 $0.0000 으로 보고했다.)
+        if (!sawResult) {
+            usage.markNoResult(stopReason
+                ? `종료 조건(${stopReason.limit})으로 중단해 결과 메시지를 받지 못했다`
+                : '결과 메시지를 받지 못했다 (연결 또는 프로세스 실패)');
         }
-        guard.assertNotShadowed();
+        guard.assertGateIntact();
     }
     finally {
         guard.disarm();

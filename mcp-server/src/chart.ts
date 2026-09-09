@@ -52,13 +52,37 @@ export function resolveField(root: unknown, field: string): unknown[] {
   return current;
 }
 
-/** 해석된 노드들에서 숫자만 모은다. */
+/**
+ * 해석된 노드들에서 숫자를 모은다.
+ *
+ * 객체가 나오면 그 안의 숫자 값도 모은다 — `totals` 처럼 여러 지표를 한 카드에
+ * 막대 셋으로 그리는 것은 정당한 요구다. (첫 실제 실행에서 이걸 거절했다.)
+ * 범위는 여전히 **그 도구가 실제로 돌려준 값** 안이라, 지어낸 수치는 그대로 막힌다.
+ */
 function numbersIn(nodes: unknown[]): number[] {
   const out: number[] = [];
   for (const n of nodes) {
-    if (typeof n === 'number' && Number.isFinite(n)) out.push(n);
+    if (typeof n === 'number' && Number.isFinite(n)) {
+      out.push(n);
+    } else if (n !== null && typeof n === 'object' && !Array.isArray(n)) {
+      for (const v of Object.values(n as Record<string, unknown>)) {
+        if (typeof v === 'number' && Number.isFinite(v)) out.push(v);
+      }
+    }
   }
   return out;
+}
+
+/**
+ * 도구 이름을 실행 기록의 형식으로 맞춘다.
+ *
+ * 모델은 자기가 부르는 이름(`mcp__<서버>__get_x`)을 source.tool 에 넣지만,
+ * 실행 기록은 MCP 서버가 자기 이름(`get_x`)으로 남긴다. 이 차이를 서버가 흡수한다.
+ * (첫 실제 실행에서 source_not_found 가 다섯 번 나고, 모델이 시행착오로 알아냈다.
+ *  형식을 맞추는 일은 모델이 아니라 도구가 해야 한다.)
+ */
+export function normalizeToolName(name: string): string {
+  return name.replace(/^mcp__[^_]+(?:_[^_]+)*?__/, '').replace(/^mcp__.*?__/, '');
 }
 
 /**
@@ -72,12 +96,13 @@ export function verifySource(runId: string, source: Source, data: ChartPoint[]):
     throw new ToolError('empty_chart_data', 'data 가 비어 있다. 그릴 것이 없다', { source });
   }
 
-  const output = lastSuccessfulOutput(runId, source.tool);
+  const toolKey = normalizeToolName(source.tool);
+  const output = lastSuccessfulOutput(runId, toolKey);
   if (output === undefined) {
     throw new ToolError(
       'source_not_found',
-      `이 실행에서 ${source.tool} 을 성공적으로 호출한 기록이 없다. 근거 없이는 차트를 그리지 않는다`,
-      { source, how_to_fix: `먼저 ${source.tool} 을 호출한다` },
+      `이 실행에서 ${toolKey} 을 성공적으로 호출한 기록이 없다. 근거 없이는 차트를 그리지 않는다`,
+      { source, resolved_tool: toolKey, how_to_fix: `먼저 ${toolKey} 을 호출한다` },
     );
   }
 

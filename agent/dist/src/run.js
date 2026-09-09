@@ -76,8 +76,10 @@ async function main() {
     console.log('─'.repeat(70));
     const result = await runBriefing({
         runId,
-        goal: `이번 주 「이미 있어」 운영 브리핑 카드뉴스를 만들어 줘. 기간은 최근 7일이다.`
-            + ` run_id 는 "${runId}" 를 쓴다.`,
+        goal: arg('goal') ?? (`이번 주 「이미 있어」 운영 브리핑 카드뉴스를 만들어 줘. 기간은 최근 7일이다.`
+            + ` run_id 는 "${runId}" 를 쓴다.`
+            + ` 스토리보드를 제시한 뒤, 지표 카드는 render_chart 로 실제 SVG 까지 그려라.`
+            + ` 손봐야 할 것이 있으면 create_github_issue 로 이슈 생성을 제안해라 (승인은 사람이 한다).`),
         decider,
         mcpServerCommand: {
             command: process.execPath,

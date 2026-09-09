@@ -31,6 +31,8 @@ export const BLOCKED_BUILTINS = [
     'Glob', 'Grep',
     'WebSearch', 'WebFetch',
     'Task', 'TodoWrite',
+    // 첫 실제 실행에서 모델이 실제로 불러 본 것들. 목록에 없으면 표면에 남는다.
+    'ToolSearch', 'Skill', 'SlashCommand', 'ListMcpResources', 'ReadMcpResource',
 ];
 /** 이 이름이면 사람의 승인을 지나야 한다. */
 export function isWriteTool(toolName) {
