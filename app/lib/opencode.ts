@@ -107,10 +107,18 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   let toolCalls = 0;
   const errors: string[] = [];
 
+  // 상한은 execFile 의 timeout 대신 우리가 잰다.
+  // execFile 이 끊으면 close 에는 SIGTERM 만 남아, 상한에 걸린 것인지 밖에서 죽인 것인지
+  // 화면이 구별하지 못한다 — 실제로 「종료 코드 null (시그널 SIGTERM)」만 적혀 원인을 못 찾았다.
+  let killedByTimeout = false;
+  let sawAnyLine = false;
+
   // 콜백은 비워 둔다 — 결과는 'close'·'error' 이벤트로 받는다. 콜백 없이 부르면 타입이 안 맞는다.
   const child = execFile(opencodeBin(), args, {
-    env, timeout: OPENCODE_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024,
+    env, maxBuffer: 32 * 1024 * 1024,
   }, () => {});
+  const deadline = setTimeout(() => { killedByTimeout = true; child.kill('SIGTERM'); },
+    OPENCODE_TIMEOUT_MS);
   let stdout = '';
   child.stdout?.on('data', (chunk: Buffer | string) => {
     stdout += String(chunk);
@@ -118,6 +126,7 @@ export function startOpencode(opts: OpencodeStartOptions): void {
     stdout = lines.pop() ?? '';
     for (const line of lines) {
       if (!line.trim()) continue;
+      sawAnyLine = true;
       const parsed = parseOpencodeLine(line);
       if (parsed.kind === 'text') {
         finalText = parsed.text;
@@ -142,6 +151,7 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   });
 
   child.on('error', (err) => {
+    clearTimeout(deadline);
     store.update(runId, (s) => {
       s.status = 'failed';
       s.trace.push({ seq: s.trace.length + 1, at: new Date().toISOString(), kind: 'error',
@@ -151,6 +161,7 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   });
 
   child.on('close', (code, signal) => {
+    clearTimeout(deadline);
     store.update(runId, (s) => {
       if (code === 0 && errors.length === 0) {
         s.status = 'done';
@@ -158,7 +169,11 @@ export function startOpencode(opts: OpencodeStartOptions): void {
         s.status = 'failed';
         s.trace.push({ seq: s.trace.length + 1, at: new Date().toISOString(), kind: 'error',
           label: '실행 실패',
-          detail: `종료 코드 ${code}${signal ? ` (시그널 ${signal})` : ''}`
+          detail: (killedByTimeout
+            ? `${OPENCODE_TIMEOUT_MS / 60000}분 상한에서 끊었다 (SIGTERM)`
+              + (sawAnyLine ? '' : ' — opencode 가 그동안 한 줄도 내놓지 않았다.'
+                + ' 모델·인증이 준비됐는지 opencode 쪽에서 먼저 본다: opencode auth list')
+            : `종료 코드 ${code}${signal ? ` (시그널 ${signal})` : ''}`)
             + (errors.length ? `\n${errors.join('\n')}` : ''),
           isError: true });
       }
