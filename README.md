@@ -9,6 +9,7 @@ Day 39 「사용자와 함께 만드는 카드뉴스 에이전트」 6강의 확
 > ⚠️ 작성 중 — `CHECKLIST.md`를 따라 진행한다. 완성 후 이 줄은 지운다.
 
 - **대상 앱**: [이미 있어](https://already-got-it.vercel.app) ([hey-byeunya/already-got-it](https://github.com/hey-byeunya/already-got-it))
+- **저장소**: [hey-byeunya/already-got-it-agent](https://github.com/hey-byeunya/already-got-it-agent) — 현재 비공개, 제출 시점에 공개로 전환
 - **실행**: 로컬 (`npm run dev`). 배포하지 않는다 — 제출은 저장소 URL + 결과물 캡처본이다
 
 ## 무엇을 해결하는가

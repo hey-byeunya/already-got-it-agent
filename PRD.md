@@ -4,7 +4,7 @@
 개발 활동 · IT 트렌드 네 축을 읽어 **주간 운영 브리핑 카드뉴스**를 만들어 주는 에이전틱 워크플로 서비스다.
 
 - 대상 앱: https://already-got-it.vercel.app ([hey-byeunya/already-got-it](https://github.com/hey-byeunya/already-got-it))
-- 저장소: TODO
+- 저장소: https://github.com/hey-byeunya/already-got-it-agent
 - 실행: 로컬 (`npm run dev`). 결과물과 화면은 캡처해 `evidence/`에 남긴다
 
 ---
