@@ -1,0 +1,84 @@
+{
+  "variant": "E0",
+  "fixture_id": "f3-metric-drop",
+  "attempt": 3,
+  "run_id": "eval-E0-f3-metric-drop-3",
+  "started_at": "2026-09-09T11:29:13.500Z",
+  "finished_at": "2026-09-09T11:31:23.620Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 9,
+  "elapsed_seconds": 130.1,
+  "usage_known": true,
+  "total_cost_usd": 0.1998698,
+  "input_tokens": 6,
+  "output_tokens": 11345,
+  "credential_source": "stored_login",
+  "permission_denials": 0,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f3-metric-drop",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [],
+    "must_include": [
+      {
+        "item": "가입 4명 (전주 19명)",
+        "tokens": [
+          "19"
+        ],
+        "found": [
+          "19"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "활성 사용자 18명 (전주 44명)",
+        "tokens": [
+          "18",
+          "44"
+        ],
+        "found": [
+          "18",
+          "44"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "있템 등록 60건 (전주 201건)",
+        "tokens": [
+          "60",
+          "201"
+        ],
+        "found": [
+          "60",
+          "201"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "시스템 쪽에는 이상이 없었다는 사실 (배포 1건 성공, 함수 오류 4건)",
+        "tokens": [],
+        "found": [],
+        "missing": [],
+        "ok": false
+      }
+    ],
+    "must_include_auto_judgeable": 3,
+    "must_include_satisfied": 3,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 2073,
+  "final_text": "## 조회 결과 요약 (2026-09-02 ~ 2026-09-09, run_id: `eval-E0-f3-metric-drop-3`)\n\n**시스템 상태** (`get_system_health`)\n- 배포 1건 (`dpl_c1`, 2026-09-04 13:00 KST, commit `88ff99a`) — 상태 READY, 빌드 에러 없음\n- 함수 오류(function_errors): 7일간 **4건** (조회 성공, `unavailable_fields` 없음 → 결측 아님, 실제 값)\n- 단, 이전 기간 대비 비교값은 이 도구가 제공하지 않아 4건이 평소보다 많은지 적은지는 **판단 불가**\n\n**사용자 지표** (`get_user_metrics`, 일별 + 전주 대비)\n| 지표 | 이번 주 | 지난 주 | 증감 |\n|---|---|---|---|\n| 신규 가입 | 4 | 19 | **-79%** |\n| 보유템 등록 | 60 | 201 | **-70%** |\n| 위시 등록 | 15 | 66 | **-77%** |\n| 활성 사용자 | 18 | 44 | **-59%** |\n\n`previous_period_totals`가 null이 아니므로 이 비교는 확인한 사실. 활성 사용자 일별 흐름(9→7→8→6→7→4→5)도 주간 내내 낮은 수준 — 특정 요일 급락이 아니라 한 주 전체가 낮음.\n\n**개발 활동** (`get_dev_activity`)\n- 커밋 3건 (작성자 1명), 병합 PR 0건\n- 열린 이슈 1건: #8 \"위시 정렬 옵션 추가\" (12일째 대기, 이번 주 브리핑과 무관한 기존 건)\n\n**의존성 트렌드** (`web_search`, next/react/@supabase/tailwind/typescript/vitest 각각 검색)\n- 6건 모두 동일하게 \"Vercel Analytics 요금 정책 변경\" 결과만 반환됨. 이는 지정된 의존성 목록에 해당하지 않고 `published_at`도 null(게시일 미확인) → **관련 소식 없음으로 처리**, 카드에 억지로 넣지 않음\n\n---\n\n## 제안 스토리보드 (6장)\n\n1. **[지켜볼 것 · 최상위]** 핵심 지표 전주 대비 동반 하락 — 가입/등록/활성 사용자 4개 지표 모두 -59%~-79%. 원인 단정 안 함(배포 시점 09-04와 겹치지만 인과관계 미확인). 차트: 이번 주 totals 막대그래프, 가입 지표 하이라이트.\n2. **[지켜볼 것]** 활성 사용자 일별 추이 — 주 초반부터 이미 낮고 후반(9/7) 4명까지 하락, 단발성 급락이 아님. 차트: 일별 active_users 라인성 막대.\n3. **[지켜볼 것]** 보유템 등록 건수 추이 — 14→11→9→7→8→5→6, 등록 활동 자체도 감소. 차트: 일별 owned_created 막대.\n4. **[확인된 사실 · 문제 없음]** 배포/오류 현황 — 배포 1건 성공, 빌드 에러 0. 함수 오류 4건(비교 기준 없어 이상 여부 판단 불가)을 사실로만 기재. \"지금 손봐야 할 배포 문제는 없음\"을 명시.\n5. **[알아둘 것]** 개발 활동 — 커밋 3건/작성자 1명, 병합 PR 0건, 이슈 #8 12일째 대기(신규 이슈 아님, 참고만).\n6. **[알아둘 것]** 의존성 동향 — 이번 주 지정 의존성(next 16.2/react 19.2/supabase/tailwind 4/typescript 5/vitest) 관련 릴리스·보안 소식 없음(검색 결과가 무관 항목뿐이라 제외). \"확인 못 함/해당 없음\"으로 정리.\n\n**이슈 생성 제안**: 카드 1의 지표 급락 건에 대해 아래 내용으로 `create_github_issue`를 호출해 조사 이슈 생성을 제안하려 합니다 (승인 전까지 실행 안 됨):\n- 제목: \"주간 핵심 지표 급락 — 원인 조사 필요 (가입/등록/활성 사용자)\"\n- 본문: 위 표 수치 + \"배포(88ff99a, 09-04)와 시간이 겹치나 인과관계 확인 안 됨. 인증 플로우, 트래킹 스크립트, 마케팅 채널 종료 여부 등을 점검 제안\" + 근거(`get_user_metrics` totals/previous_period_totals)\n\n이 스토리보드대로 진행해도 될까요, 아니면 카드 구성이나 이슈 제안 문구를 수정할까요?"
+}

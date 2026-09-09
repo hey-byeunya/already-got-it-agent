@@ -1,0 +1,84 @@
+{
+  "variant": "E0",
+  "fixture_id": "f3-metric-drop",
+  "attempt": 2,
+  "run_id": "eval-E0-f3-metric-drop-2",
+  "started_at": "2026-09-09T11:26:28.820Z",
+  "finished_at": "2026-09-09T11:29:13.499Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 9,
+  "elapsed_seconds": 164.7,
+  "usage_known": true,
+  "total_cost_usd": 0.2658924,
+  "input_tokens": 10,
+  "output_tokens": 13655,
+  "credential_source": "stored_login",
+  "permission_denials": 1,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f3-metric-drop",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [],
+    "must_include": [
+      {
+        "item": "가입 4명 (전주 19명)",
+        "tokens": [
+          "19"
+        ],
+        "found": [
+          "19"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "활성 사용자 18명 (전주 44명)",
+        "tokens": [
+          "18",
+          "44"
+        ],
+        "found": [
+          "18",
+          "44"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "있템 등록 60건 (전주 201건)",
+        "tokens": [
+          "60",
+          "201"
+        ],
+        "found": [
+          "60",
+          "201"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "시스템 쪽에는 이상이 없었다는 사실 (배포 1건 성공, 함수 오류 4건)",
+        "tokens": [],
+        "found": [],
+        "missing": [],
+        "ok": false
+      }
+    ],
+    "must_include_auto_judgeable": 3,
+    "must_include_satisfied": 3,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 2458,
+  "final_text": "# 「이미 있어」 주간 운영 브리핑 — 2026-09-02 ~ 2026-09-09\n\n`run_id: eval-E0-f3-metric-drop-2` 로 조회한 결과를 바탕으로 스토리보드를 구성하고, 지표 카드는 `render_chart` 로 실제 SVG를 그렸습니다. 총 7장입니다.\n\n---\n\n**카드 1 — 표지**\n이미 있어 주간 운영 브리핑 · 2026-09-02 ~ 2026-09-09\n헤드라인: *이번 주 핵심 지표가 지난 주 대비 큰 폭으로 하락했습니다.*\n\n---\n\n**카드 2 — [지켜볼 것] 일별 활성 사용자, 주 내내 하강**\n📊 `charts/02.svg` (source: `get_user_metrics.series[].active_users`)\n- 확인한 사실: 활성 사용자가 9/2 9명 → 9/7 4명(주중 최저) → 9/8 5명으로, 주 전반에 걸쳐 하강 곡선입니다.\n- 등록한 물건 수도 같은 기간 14 → 5건으로 거의 매일 줄었습니다(`series[].owned_created`).\n- 추정: 단발성 노이즈라기엔 여러 날에 걸친 지속적 하강입니다. 원인은 이 데이터만으로 알 수 없습니다.\n\n---\n\n**카드 3 — [지켜볼 것] 이번 주 vs 지난 주 총계**\n📊 `charts/03.svg` (source: `get_user_metrics.totals`)\n- 확인한 사실 (`totals` vs `previous_period_totals`):\n  - 신규가입 4명 (지난 주 19명, **-79%**)\n  - 등록한 물건 60건 (지난 주 201건, **-70%**)\n  - 위시 등록 15건 (지난 주 66건, **-77%**)\n  - 활성 사용자 18명 (지난 주 44명, **-59%**)\n- 네 지표가 동시에, 비슷한 폭으로 떨어졌습니다.\n- 원인 단정 안 함: 같은 기간에 배포가 1건(9/4) 있었지만, 시점이 겹친다는 것만으로 배포를 원인으로 지목하지 않습니다. 확인이 필요한 항목일 뿐입니다.\n\n---\n\n**카드 4 — [지금 손봐야 할 것 점검] 시스템 상태는 표면상 정상**\n- 확인한 사실 (`get_system_health`): 이번 기간 배포 1건(9/4, `dpl_c1`, commit `88ff99a`), 상태 READY, `build_error: null`. 실패 배포 없음(`summary.error: 0`).\n- 확인한 사실: function_errors 7일 누적 4건 (`unavailable_fields` 없음 → 결측 아니라 실제 값).\n- 확인 못 함: 이 4건이 평소보다 많은지 적은지 — 비교할 이전 기간 수치가 없어 심각도를 판단할 수 없습니다.\n- 결론: 배포 자체는 실패 없음. 다만 함수 오류 4건의 내용은 이 도구로는 더 들여다볼 수 없어 별도 확인이 필요합니다.\n\n---\n\n**카드 5 — [알아둘 것] 개발 활동은 조용한 한 주**\n- 확인한 사실 (`get_dev_activity`): 이번 기간 커밋 3건(작성자 1명), 병합된 PR 0건.\n- 확인한 사실: 미해결 이슈 1건 — #8 \"위시 정렬 옵션 추가\", 12일째 열려 있음.\n- 지표 급락과 개발 활동을 연결할 근거는 없습니다(단, 상관관계 확인이 필요하다는 카드 3의 제안과는 별개로 다룹니다).\n\n---\n\n**카드 6 — [알아둘 것] 이번 주 의존성 관련 소식 없음**\n- Next 16.2.x / React 19.2.x / @supabase/ssr·supabase-js / Tailwind 4.x / TypeScript 5.x / Vitest 관련 릴리스 노트·보안 권고를 3건 검색했습니다.\n- 확인 못 함: 세 검색 모두 관련 없는 항목(Vercel Analytics 요금 정책 변경 안내, `published_at: null`)만 반환했고, 위 의존성 중 어느 것에도 해당하지 않아 브리핑에 넣지 않았습니다.\n- 결론: 이번 주 이 앱이 쓰는 의존성에 해당하는 새 소식은 확인되지 않았습니다.\n\n---\n\n**카드 7 — 다음 액션: 이슈 제안 (거절됨)**\n카드 2·3의 지표 급락을 조사 이슈로 남기자고 `create_github_issue` 를 호출했습니다 (제목: \"[조사] 9/2~9/8 핵심 지표 전주 대비 대폭 하락\", 근거로 `get_user_metrics.totals`/`previous_period_totals` 명시, 배포 시점은 인과관계 아닌 참고사항으로만 기재).\n→ **사람이 승인하지 않아 실행되지 않았습니다.** 지침에 따라 재시도하지 않았습니다. 필요하시면 다음에 직접 승인해 주시거나, 다른 방식으로 이슈를 남겨주세요.\n\n---\n\n### 요약\n가장 중요한 신호는 카드 2·3의 **전 지표 동시 급락**이며, 원인은 이 데이터만으로 확정할 수 없습니다(추정 아님, 확인 못 함으로 분류). 시스템 배포 자체는 실패 없이 정상이었고, 개발 활동은 평소보다 적었을 뿐 특이사항은 없습니다. 의존성 쪽은 이번 주 해당 소식 없음입니다. 지표 급락 조사 이슈는 제안했으나 승인되지 않았습니다."
+}

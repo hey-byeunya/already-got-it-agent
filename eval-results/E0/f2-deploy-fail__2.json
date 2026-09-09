@@ -1,0 +1,88 @@
+{
+  "variant": "E0",
+  "fixture_id": "f2-deploy-fail",
+  "attempt": 2,
+  "run_id": "eval-E0-f2-deploy-fail-2",
+  "started_at": "2026-09-09T11:19:00.396Z",
+  "finished_at": "2026-09-09T11:21:31.685Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 12,
+  "elapsed_seconds": 151.3,
+  "usage_known": true,
+  "total_cost_usd": 0.26318339999999996,
+  "input_tokens": 8,
+  "output_tokens": 13585,
+  "credential_source": "stored_login",
+  "permission_denials": 1,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f2-deploy-fail",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [],
+    "must_include": [
+      {
+        "item": "dpl_b2 배포 실패와 빌드 오류 원문 (used_up_at / app/items/[id]/page.tsx:42)",
+        "tokens": [
+          "dpl_b2",
+          "42"
+        ],
+        "found": [],
+        "missing": [
+          "dpl_b2",
+          "42"
+        ],
+        "ok": false
+      },
+      {
+        "item": "1시간 15분 뒤 dpl_b3 로 복구됨",
+        "tokens": [
+          "dpl_b3",
+          "15"
+        ],
+        "found": [],
+        "missing": [
+          "dpl_b3",
+          "15"
+        ],
+        "ok": false
+      },
+      {
+        "item": "함수 오류 47건 (기간 내 수치 그대로. 전주 값이 없으므로 증감을 말할 수 없다)",
+        "tokens": [
+          "47"
+        ],
+        "found": [
+          "47"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "이슈 13번 '쓴템 표시가 목록에서 사라짐'",
+        "tokens": [
+          "13"
+        ],
+        "found": [
+          "13"
+        ],
+        "missing": [],
+        "ok": true
+      }
+    ],
+    "must_include_auto_judgeable": 4,
+    "must_include_satisfied": 2,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 891,
+  "final_text": "세 카드의 차트는 정상 생성되었고, 이슈 생성 제안은 **사람이 승인하지 않아 실행되지 않았습니다** (지시대로 재시도하지 않고 그대로 기록합니다).\n\n## 결과 요약\n\n| 카드 | 내용 | 차트 |\n|---|---|---|\n| 1 | 배포 실패 (9/5, `used_up_at` 타입 에러 → 75분 뒤 복구) + function_errors 47건 | 없음 (일별 세부 데이터 없어 차트 불가) |\n| 2 | 일별 활성 사용자 추이, 9/5 급락 강조 | ✅ `charts/02.svg` |\n| 3 | 이번 주 총계 4개 지표, 전주 대비 전반적 소폭 하락 | ✅ `charts/03.svg` |\n| 4 | 오픈 이슈 #11(5일)·#13(3일) 경과일 | ✅ `charts/04.svg` |\n| 5 | `@supabase/supabase-js` v2.111 (breaking change 없음, 액션 불필요) | 없음 (정보성) |\n\n**이슈 생성 제안 — 거절됨**\n- 제목: \"[배포 실패] OwnedItem.used_up_at 타입 에러로 9/5 프로덕션 빌드 실패\"\n- 결과: 사람이 승인하지 않아 이슈가 생성되지 않았습니다. 재시도하지 않습니다.\n\n## 확인 못 한 것 (그대로 밝힘)\n- 9/5 지표 급락과 배포 실패의 인과관계 — 시간이 겹친다는 것 외 근거 없음.\n- function_errors 47건 중 이번 배포와 직접 관련된 건수 — 도구가 원인별 세부 내역 미제공.\n- next/react/tailwind/typescript/vitest 관련 릴리스·보안 소식 — 검색 결과가 매번 supabase 항목만 반환되어 확인하지 못함.\n\n**필요하시면**: 이슈 제안 문구를 수정해서 다시 검토를 요청하거나, 카드뉴스를 실제 페이지(Artifact)로 만들어 드릴까요?"
+}

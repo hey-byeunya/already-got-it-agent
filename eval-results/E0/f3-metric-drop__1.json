@@ -1,0 +1,84 @@
+{
+  "variant": "E0",
+  "fixture_id": "f3-metric-drop",
+  "attempt": 1,
+  "run_id": "eval-E0-f3-metric-drop-1",
+  "started_at": "2026-09-09T11:23:58.731Z",
+  "finished_at": "2026-09-09T11:26:28.819Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 11,
+  "elapsed_seconds": 150.1,
+  "usage_known": true,
+  "total_cost_usd": 0.253509,
+  "input_tokens": 8,
+  "output_tokens": 13248,
+  "credential_source": "stored_login",
+  "permission_denials": 1,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f3-metric-drop",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [],
+    "must_include": [
+      {
+        "item": "가입 4명 (전주 19명)",
+        "tokens": [
+          "19"
+        ],
+        "found": [
+          "19"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "활성 사용자 18명 (전주 44명)",
+        "tokens": [
+          "18",
+          "44"
+        ],
+        "found": [
+          "18",
+          "44"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "있템 등록 60건 (전주 201건)",
+        "tokens": [
+          "60",
+          "201"
+        ],
+        "found": [
+          "60",
+          "201"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "시스템 쪽에는 이상이 없었다는 사실 (배포 1건 성공, 함수 오류 4건)",
+        "tokens": [],
+        "found": [],
+        "missing": [],
+        "ok": false
+      }
+    ],
+    "must_include_auto_judgeable": 3,
+    "must_include_satisfied": 3,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 1430,
+  "final_text": "## 「이미 있어」 주간 운영 브리핑 — 2026-09-02 ~ 2026-09-09\n\n### 카드 1 · 지켜볼 것 (핵심 신호) — 이번 주 사용자 활동 지표\n📊 `charts/01.svg`\n- 가입 4 / 물건 등록 60 / 위시 등록 15 / 활성 사용자 18 *(확인한 사실 — `get_user_metrics.totals`)*\n\n### 카드 2 · 지켜볼 것 — 지난 주 대비 비교\n📊 `charts/02.svg`\n- 지난 주: 가입 19 / 물건 등록 201 / 위시 등록 66 / 활성 사용자 44 *(확인한 사실 — `previous_period_totals`)*\n- 변화율: 가입 -78.9%, 물건 등록 -70.1%, 위시 등록 -77.3%, 활성 사용자 -59.1%\n- **추정**: 네 지표가 동시에 큰 폭으로 줄었다는 점은 개별 기능 장애보다 전반적 유입/사용 감소를 시사하나, 원인은 이 데이터로 **확인 못 함**.\n\n### 카드 3 · 지켜볼 것 — 일별 활성 사용자 추이\n📊 `charts/03.svg`\n- 9/2 9명 → 9/3 7 → 9/4 8 → 9/5 6 → 9/6 7 → **9/7 4(주간 최저)** → 9/8 5 *(확인한 사실 — `series[].active_users`)*\n- 주 후반부로 갈수록 낮게 유지됨. 원인은 **확인 못 함**.\n\n### 카드 4 · 지금 손봐야 할 것 — 시스템 상태\n- 배포 1건(9/4, `88ff99a`), state READY, build_error 없음 → **이상 없음**\n- 함수 오류 4건 / 7일(`function_errors.count`, available=true) — **확인한 사실**이나 비교할 이전 기간 값이 없어 이 수치가 높은지 낮은지는 **확인 못 함**\n- `unavailable_fields` 없음 → 조회 실패 항목 없음\n\n### 카드 5 · 알아둘 것 — 개발 활동\n- 열린 이슈 1건: \"위시 정렬 옵션 추가\" (12일째 열림, enhancement)\n- 이번 기간 커밋 3건(작성자 1명), 머지된 PR 0건 *(확인한 사실 — `get_dev_activity`)*\n\n### 카드 6 · 알아둘 것 — 의존성 트렌드\n- next 16.2.x / react 19.2.x / @supabase/ssr·supabase-js / tailwindcss 4.x / typescript 5.x / vitest 관련 검색 4건 모두 무관한 결과(\"Vercel Analytics 요금 정책\" 등, 게시일도 미확인)만 반환됨\n- **이번 주 실을 만한 의존성 소식 없음** — 억지로 채우지 않음\n\n---\n\n**이슈 생성 제안 결과**: 카드 1~3 근거로 \"사용자 활동 지표 전주 대비 급감 원인 조사\" 이슈 생성을 제안했으나 **사람이 승인하지 않아 생성되지 않았습니다.** 재시도하지 않았습니다. 필요하시면 내용을 수정해 다시 요청해 주세요."
+}

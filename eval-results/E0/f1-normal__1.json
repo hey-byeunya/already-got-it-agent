@@ -1,0 +1,79 @@
+{
+  "variant": "E0",
+  "fixture_id": "f1-normal",
+  "attempt": 1,
+  "run_id": "eval-E0-f1-normal-1",
+  "started_at": "2026-09-09T08:07:23.572Z",
+  "finished_at": "2026-09-09T08:09:52.624Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 13,
+  "elapsed_seconds": 149,
+  "usage_known": true,
+  "total_cost_usd": 0.238269,
+  "input_tokens": 8,
+  "output_tokens": 12605,
+  "credential_source": "stored_login",
+  "permission_denials": 1,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f1-normal",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [],
+    "must_include": [
+      {
+        "item": "배포 2건 모두 성공 (dpl_a1, dpl_a2)",
+        "tokens": [
+          "dpl_a1",
+          "dpl_a2"
+        ],
+        "found": [
+          "dpl_a2"
+        ],
+        "missing": [
+          "dpl_a1"
+        ],
+        "ok": false
+      },
+      {
+        "item": "가입 19명 — 전주 17명 대비 증가",
+        "tokens": [
+          "19",
+          "17"
+        ],
+        "found": [
+          "19"
+        ],
+        "missing": [
+          "17"
+        ],
+        "ok": false
+      },
+      {
+        "item": "열린 이슈 2건, 가장 오래된 것 12일",
+        "tokens": [
+          "12"
+        ],
+        "found": [
+          "12"
+        ],
+        "missing": [],
+        "ok": true
+      }
+    ],
+    "must_include_auto_judgeable": 3,
+    "must_include_satisfied": 1,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 1785,
+  "final_text": "## 「이미 있어」 주간 운영 브리핑 — 2026-09-02 ~ 2026-09-09\n\n스토리보드는 아래 5장이다. 가장 중요한 신호(함수 오류)를 1번에 두었고, 지표 카드는 `render_chart`로 실제 SVG를 그렸다. 이슈 제안은 사람 승인 단계에서 거절되어 생성되지 않았다 (아래 카드 1 참고, 재시도하지 않음).\n\n---\n\n### 카드 1 — 지금 손봐야 할 것: 함수 오류 3건 (배포 자체는 정상)\n**확인한 사실** (`get_system_health`): 최근 7일 배포 2건 모두 `READY`, `build_error` 없음(`summary.error=0`). 같은 기간 `function_errors.count=3`(`window=7d`, `available=true`).\n**확인 못 함**: 어떤 라우트/함수에서 발생했는지, 오류 유형, 지난 기간 대비 증감(비교값 없음) — 3건이 평소보다 많은지는 이 데이터만으로 판단 불가.\n→ 차트: `charts/01.svg` (배포 성공 2 / 실패 0)\n→ **이슈 제안 시도함, 사람이 승인하지 않아 생성되지 않았음.** (\"사람이 승인하지 않았다\" 응답 수신) 재시도하지 않음. 필요하면 직접 이슈를 등록하거나, 승인 후 다시 요청해 달라.\n\n### 카드 2 — 지켜볼 것: 9/7 활성 사용자·등록 동시 하락\n**확인한 사실** (`get_user_metrics.series`): 활성 사용자가 9/5(21)·9/6(20)에서 9/7(15)로 떨어졌다가 9/8(18)로 회복. 같은 9/7에 있템 등록(22, 주중 최저)과 위시 등록(7, 주중 최저)도 함께 낮았다.\n**추정**: 세 지표가 같은 날 동시에 낮아 하나의 신호로 보이나, **원인은 이 데이터로 알 수 없다.** 9/6 저녁 배포(`dpl_a2`)와 시간이 가깝지만, 시간이 겹친다는 이유로 원인으로 단정하지 않는다.\n→ 차트: `charts/02.svg` (9/7 하이라이트)\n\n### 카드 3 — 지켜볼 것: 주간 합계는 전주 대비 소폭 증가\n**확인한 사실** (`get_user_metrics.totals` vs `previous_period_totals`): 신규가입 19(+2), 있템 등록 201(+13), 위시 등록 66(+5), 활성 사용자 44(+2). 전 지표 소폭 증가.\n→ 차트: `charts/03.svg`\n\n### 카드 4 — 알아둘 것: Next.js 16.2.12 릴리스\n**확인한 사실** (`web_search`, 게시일 2026-09-05): Next.js 16.2.12 출시, App Router 마이너 버그 수정 패치.\n**확인 못 함**: 이 저장소에 실제로 설치된 next 버전 (package.json 등을 조회하지 않았음) — 16.2.x 계열이라는 것만 사용자가 알려준 정보다. 그 외 react/@supabase/tailwindcss/typescript/vitest 관련 새 소식은 검색에서 나오지 않았다.\n\n### 카드 5 — 지켜볼 것: 열린 이슈 백로그\n**확인한 사실** (`get_dev_activity`): 열린 이슈 2건 — `#8` 위시 정렬 옵션(12일째, enhancement), `#11` 모바일 카테고리 필터 겹침(5일째, bug). 커밋 14건(작성자 1명), 이번 기간 merge 2건, 열린 PR 없음.\n→ 차트: `charts/05.svg`\n\n---\n\n**요약**: 이번 주 배포는 문제 없었고, 지표는 전반적으로 소폭 상승했다. 다만 함수 오류 3건과 9/7 동시 하락은 원인 확인이 필요한 신호이며, 함수 오류에 대한 이슈 제안은 승인받지 못해 남지 않았다."
+}

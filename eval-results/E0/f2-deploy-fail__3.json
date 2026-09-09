@@ -1,0 +1,89 @@
+{
+  "variant": "E0",
+  "fixture_id": "f2-deploy-fail",
+  "attempt": 3,
+  "run_id": "eval-E0-f2-deploy-fail-3",
+  "started_at": "2026-09-09T11:21:31.686Z",
+  "finished_at": "2026-09-09T11:23:58.730Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 11,
+  "elapsed_seconds": 147,
+  "usage_known": true,
+  "total_cost_usd": 0.24915140000000002,
+  "input_tokens": 8,
+  "output_tokens": 13052,
+  "credential_source": "stored_login",
+  "permission_denials": 1,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f2-deploy-fail",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [],
+    "must_include": [
+      {
+        "item": "dpl_b2 배포 실패와 빌드 오류 원문 (used_up_at / app/items/[id]/page.tsx:42)",
+        "tokens": [
+          "dpl_b2",
+          "42"
+        ],
+        "found": [
+          "dpl_b2",
+          "42"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "1시간 15분 뒤 dpl_b3 로 복구됨",
+        "tokens": [
+          "dpl_b3",
+          "15"
+        ],
+        "found": [
+          "dpl_b3"
+        ],
+        "missing": [
+          "15"
+        ],
+        "ok": false
+      },
+      {
+        "item": "함수 오류 47건 (기간 내 수치 그대로. 전주 값이 없으므로 증감을 말할 수 없다)",
+        "tokens": [
+          "47"
+        ],
+        "found": [
+          "47"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "이슈 13번 '쓴템 표시가 목록에서 사라짐'",
+        "tokens": [
+          "13"
+        ],
+        "found": [
+          "13"
+        ],
+        "missing": [],
+        "ok": true
+      }
+    ],
+    "must_include_auto_judgeable": 4,
+    "must_include_satisfied": 3,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 2564,
+  "final_text": "# 「이미 있어」 주간 운영 브리핑 (2026-09-02 ~ 2026-09-09)\n\nrun_id: `eval-E0-f2-deploy-fail-3` · 아래 스토리보드 순서대로 6장 구성.\n\n---\n\n### 카드 1 · 지금 손봐야 할 것 — 배포 실패 1건 (74분 만에 복구)\n- **확인한 사실** (`get_system_health`): 09-05 18:05 배포(dpl_b2, commit `44cc55d`)가 빌드 에러로 실패.\n  - 에러 원문: `Type error: Property 'used_up_at' does not exist on type 'OwnedItem'. app/items/[id]/page.tsx:42`\n  - 같은 날 19:20 배포(dpl_b3, commit `66ee77f`)가 성공해 복구됨. 이번 주 배포 3건 중 1건 실패(`summary`: ready=2, error=1).\n- 차트: `charts/01.svg` (성공 2 / 실패 1, 실패 막대에 복구 메모 표시)\n- **제안 이슈 생성 시도 → 거절됨.** `create_github_issue` 호출을 만들어 사람 승인을 요청했으나 **승인되지 않아 실행되지 않았습니다.** (재시도하지 않음, 아래 \"제안했던 내용\" 참고)\n\n> **제안했던 내용(미승인)**: 이 실패와 열린 이슈 #13 \"쓴템 표시가 목록에서 사라짐\"(09-06 생성)이 같은 `used_up_at` 필드/기능 영역일 가능성이 있다는 **추정**(단정 아님)과, 타입 에러가 프로덕션 빌드 단계에서야 잡힌 점을 근거로 CI 타입체크 게이트 검토를 제안했습니다. 필요하면 다시 검토해 승인해 주세요.\n\n---\n\n### 카드 2 · 지켜볼 것 — 9/5 사용자 지표 전반 급락\n- **확인한 사실** (`get_user_metrics`, 일별 시리즈): 09-05만 signups 1 / owned_created 12 / wish_created 3 / active_users 9로, 전후 다른 날(평균 signups 2~3, owned_created 24~33, active_users 16~20)의 절반 이하로 떨어짐.\n- 차트: `charts/02.svg` (일별 active_users, 09-05 하이라이트)\n- **추정/확인 못 함**: 같은 날 배포 실패(dpl_b2)가 있었다는 것은 사실이지만, **두 사건의 인과관계는 이 데이터로 확인할 수 없습니다.** 확인하려면 해당 시간대 함수 오류 로그·접속 실패율을 별도로 대조해야 합니다.\n\n---\n\n### 카드 3 · 지켜볼 것 — 전주 대비 전체 지표 소폭 감소\n- **확인한 사실** (`get_user_metrics`, `totals` vs `previous_period_totals`): signups 17→18, owned_created 185→195, wish_created 60→63, active_users 41→43 — 4개 지표 모두 소폭 감소(각 1~10 감소, 큰 폭 아님).\n- 차트: `charts/03.svg` (이번 주 핵심 지표 합계)\n- 하락 폭이 크지 않아 별도 조치보다는 다음 주 추이 확인 권장.\n\n---\n\n### 카드 4 · 알아둘 것 — 열린 버그 이슈 현황\n- **확인한 사실** (`get_dev_activity`): 열린 이슈 2건 — #11 \"모바일에서 카테고리 필터가 겹침\"(5일째, bug), #13 \"쓴템 표시가 목록에서 사라짐\"(3일째, bug). PR #14는 4일째 open(draft 아님). 이번 기간 merge 3건, commit 21건(작성자 1명).\n- 신규 사실은 아니며, 기존에 이미 열려 있던 이슈들의 현황 확인입니다.\n\n---\n\n### 카드 5 · 알아둘 것 — 함수 오류 47건 (비교 기준 없음)\n- **확인한 사실** (`get_system_health`): 최근 7일 함수 오류 47건 (`function_errors.available: true`, `unavailable_fields: []` — 결측 아님, 실제 조회된 값).\n- **확인 못 함**: 지난 기간 대비 값이 없어 47건이 많은지 적은지 **판단할 수 없습니다.** 다음 주부터 주간 비교가 가능하도록 이 수치를 계속 기록해 두는 것을 권장합니다.\n\n---\n\n### 카드 6 · 알아둘 것 — 의존성 소식\n- **확인한 사실** (`web_search`, 게시일 2026-09-07): `@supabase/supabase-js` v2.111 — typed RPC helper 추가, breaking change 없음.\n- next/react/tailwind/typescript/vitest 관련 검색에서는 이 앱에 해당하는 새 소식이 나오지 않았습니다(검색 결과가 매번 동일한 supabase 항목으로만 반환됨 — 다른 의존성에 대해서는 **확인 못 함**으로 남깁니다. 필요하면 각 의존성명을 더 구체적으로 지정해 재검색할 수 있습니다).\n\n---\n\n**요약**: 이번 주 가장 급한 신호는 카드 1(배포 실패, 이미 복구됨 + 이슈 제안 미승인)과 카드 2(9/5 지표 급락, 원인 미확인)입니다. 전체적으로 시스템이 무너진 상태는 아니고, 소폭 하락과 미확인 신호가 섞여 있는 한 주였습니다."
+}

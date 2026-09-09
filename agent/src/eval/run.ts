@@ -137,7 +137,8 @@ function summarize(trials: Trial[]): unknown {
   }
 
   const rows = [...byFixture.entries()].map(([fixture, ts]) => {
-    const hall = ts.map((t) => t.score.hallucinations.length);
+    const idHall = ts.map((t) => t.score.identifier_hallucinations.length);
+    const metricCand = ts.map((t) => t.score.metric_value_candidates.length);
     const miss = ts.map((t) => t.score.missing_misread_candidates.length);
     const cleared = ts.map((t) => t.score.missing_misread_cleared.length);
     const known = ts.filter((t) => t.usage_known);
@@ -150,8 +151,11 @@ function summarize(trials: Trial[]): unknown {
       fixture,
       attempts: ts.length,
       완주: `${ts.filter((t) => t.status === 'done').length}/${ts.length}`,
-      환각_건수: { min: Math.min(...hall), max: Math.max(...hall),
-        평균: +(hall.reduce((a, b) => a + b, 0) / hall.length).toFixed(2) },
+      식별자_환각: { min: Math.min(...idHall), max: Math.max(...idHall),
+        평균: +(idHall.reduce((a, b) => a + b, 0) / idHall.length).toFixed(2),
+        비고: '배포ID·커밋SHA·이슈번호. 정확한 문자열 일치라 판정이 확실하다' },
+      지표값_환각_후보: { min: Math.min(...metricCand), max: Math.max(...metricCand),
+        비고: '사람 확인 필요 — 12시행 기준 진짜 환각 0건, 허수 9건이었다' },
       결측오독_후보: { min: Math.min(...miss), max: Math.max(...miss),
         비고: '사람 확인 필요 — 정규식이 문장 판단을 대신하지 못한다' },
       결측오독_규칙에걸렸으나_올바른서술: { min: Math.min(...cleared), max: Math.max(...cleared) },
@@ -175,21 +179,67 @@ function summarize(trials: Trial[]): unknown {
     usage_known_trials: trials.filter((t) => t.usage_known).length,
     credential_source: trials[0]?.credential_source ?? 'unknown',
     지표_정의: {
-      환각: '배포ID·커밋SHA·이슈번호·지표낱말 옆 숫자가 픽스처에 없는 건수',
+      식별자_환각: '배포ID·커밋SHA·이슈번호가 픽스처에 없는 건수. 정확한 문자열 일치라 확실하다',
+      지표값_환각_후보: '지표 낱말 옆 개수가 그 지표의 실제 값에 없는 건수. '
+        + '**후보다** — 자유 문장에서 "이 숫자가 그 지표의 값인가"를 정규식이 안정적으로 판정하지 못한다. '
+        + '12시행 기준 진짜 환각 0건, 허수 9건이었다',
       결측오독_후보: 'unavailable_fields 항목을 0 이나 정상으로 서술한 것으로 규칙에 걸린 건수. '
         + '같은 문장에 불확실성 표시(못·미확인·말할 수 없 등)가 있으면 올바른 서술로 보고 뺀다. '
         + '남은 것은 후보이며 사람이 확인해야 한다',
       필수신호_충족률: '정답의 식별자·숫자 토큰이 원고에 나오는 비율 (토큰 대리 지표)',
       분모_규칙: 'usage_known=false 인 시행은 비용 집계 분모에서 빼고 그 수를 밝힌다',
     },
-    수동_확인_항목: ['근거 미표기율', '과잉 단정률', '우선순위 적중', '결측 오독 후보 확인'],
+    수동_확인_항목: ['근거 미표기율', '과잉 단정률', '우선순위 적중',
+      '결측 오독 후보 확인', '지표 값 환각 후보 확인'],
     rows,
   };
+}
+
+/**
+ * 저장된 원고를 지금 채점기로 다시 채점한다. **실행 비용이 들지 않는다.**
+ *
+ * 채점기를 고칠 때마다 이걸로 앞선 시행을 재판정한다. 원고를 남기지 않았다면
+ * 시행을 버려야 했다 — 실제로 첫 평가에서 그 일이 났다.
+ */
+function rescore(variant: string): void {
+  const dir = resolve(RESULTS_DIR, variant);
+  if (!existsSync(dir)) { console.error(`결과 폴더가 없다: ${dir}`); process.exit(1); }
+
+  const files = readdirSync(dir).filter((f) => /__\d+\.json$/.test(f)).sort();
+  console.log(`재채점 ${variant} — 시행 ${files.length}건 (실행하지 않는다)`);
+
+  for (const f of files) {
+    const path = resolve(dir, f);
+    const t = JSON.parse(readFileSync(path, 'utf8')) as Trial;
+    if (typeof t.final_text !== 'string' || t.final_text.length === 0) {
+      console.log(`  ${f} — 원고가 없어 재채점할 수 없다`);
+      continue;
+    }
+    const fx = JSON.parse(readFileSync(resolve(FIXTURES_DIR, `${t.fixture_id}.json`), 'utf8')) as Fixture;
+    // 예전 형식(hallucinations 하나로 합쳐 있던 판)으로 저장된 시행도 읽는다.
+    // 채점기 구조가 바뀌어도 앞선 시행을 버리지 않기 위해서다.
+    const legacy = t.score as unknown as { hallucinations?: unknown[] };
+    const before = legacy.hallucinations?.length
+      ?? ((t.score.identifier_hallucinations?.length ?? 0) + (t.score.metric_value_candidates?.length ?? 0));
+    t.score = score(t.final_text, fx);
+    writeFileSync(path, JSON.stringify(t, null, 2));
+    const after = t.score.identifier_hallucinations.length + t.score.metric_value_candidates.length;
+    const detail = `식별자 ${t.score.identifier_hallucinations.length} / 지표후보 ${t.score.metric_value_candidates.length}`;
+    console.log(`  ${f} — 환각 ${before} → ${after} (${detail})`
+      + `, 결측후보 ${t.score.missing_misread_candidates.length}`
+      + `, 필수 ${t.score.must_include_satisfied}/${t.score.must_include_auto_judgeable}`);
+  }
+
+  const trials = files.map((f) => JSON.parse(readFileSync(resolve(dir, f), 'utf8')) as Trial);
+  writeFileSync(resolve(dir, 'summary.json'), JSON.stringify(summarize(trials), null, 2));
+  console.log(`\nsummary.json 갱신됨`);
 }
 
 async function main(): Promise<void> {
   loadEnvLocal();
   const variant = arg('variant') ?? 'E0';
+
+  if (process.argv.includes('--rescore')) { rescore(variant); return; }
   const attempts = Number(arg('attempts') ?? 3);
   const only = arg('fixtures')?.split(',').map((s) => s.trim()).filter(Boolean);
   const fixtures = only ?? readdirSync(FIXTURES_DIR)
@@ -213,7 +263,9 @@ async function main(): Promise<void> {
         writeFileSync(resolve(outDir, `${fixtureId}__${attempt}.json`), JSON.stringify(t, null, 2));
         console.log(
           `${t.status} · 도구 ${t.tool_calls} · ${t.elapsed_seconds}s`
-          + ` · 환각 ${t.score.hallucinations.length} · 결측오독후보 ${t.score.missing_misread_candidates.length}`
+          + ` · 식별자환각 ${t.score.identifier_hallucinations.length}`
+          + ` · 지표후보 ${t.score.metric_value_candidates.length}`
+          + ` · 결측후보 ${t.score.missing_misread_candidates.length}`
           + ` · 비용 ${t.usage_known ? `$${t.total_cost_usd!.toFixed(4)}` : '확인못함'}`,
         );
       } catch (err) {

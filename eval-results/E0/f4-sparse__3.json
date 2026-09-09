@@ -1,0 +1,41 @@
+{
+  "variant": "E0",
+  "fixture_id": "f4-sparse",
+  "attempt": 3,
+  "run_id": "eval-E0-f4-sparse-3",
+  "started_at": "2026-09-09T11:35:32.091Z",
+  "finished_at": "2026-09-09T11:37:09.733Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 9,
+  "elapsed_seconds": 97.6,
+  "usage_known": true,
+  "total_cost_usd": 0.1769528,
+  "input_tokens": 8,
+  "output_tokens": 8212,
+  "credential_source": "stored_login",
+  "permission_denials": 0,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f4-sparse",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [
+      "series[2026-09-04..2026-09-08]"
+    ],
+    "must_include": [],
+    "must_include_auto_judgeable": 0,
+    "must_include_satisfied": 0,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 1174,
+  "final_text": "# 브리핑 스토리보드 제안 (2026-09-02 ~ 2026-09-09)\n\n먼저 확보한 데이터 상태부터 요약한다.\n\n| 도구 | 결과 |\n|---|---|\n| `get_system_health` | 배포 0건(ready 0, error 0) — **사실**. `function_errors.count`는 `unavailable_fields`에 포함되어 **확인 못 함**(0이 아니라 미확인) |\n| `get_user_metrics` | 09-02, 09-03 이틀치만 존재. 09-04~09-08 5일치는 `unavailable_fields`. `previous_period_totals`는 `null` → 전주 비교 불가 |\n| `get_dev_activity` | GitHub API 레이트 리밋으로 **전체 실패** (18분 후 재시도 가능, 지금은 진행하지 않기로 결정됨) |\n| `web_search` (의존성 5건: next/react/supabase/tailwind/typescript+vitest) | 5건 모두 결과 0건 — 검색은 수행했으나 해당 소식 없음 |\n\n이 상태 그대로면 근거가 튼튼한 카드가 5장을 채우기 빠듯하다. 무리하게 트렌드나 문제를 만들지 않고, 아래처럼 **공백 자체를 정직하게 카드화**하는 방향으로 제안한다.\n\n1. **표지** — 기간 요약: \"이번 주는 확인된 장애 신호는 없지만, 데이터 공백이 커서 판단 근거가 제한적임\"\n2. **지금 손봐야 할 것 — 모니터링 공백**: 함수 오류 수를 이번 주 내내 조회하지 못함 (사실: 배포 0건 / 확인 못 함: 오류 수) → GitHub 이슈 제안\n3. **지금 손봐야 할 것 — 개발 활동 전체 미확인**: GitHub API 레이트 리밋으로 커밋·PR·이슈 현황을 하나도 확인 못 함 (재시도 가능 시각 명시)\n4. **지켜볼 것 — 사용자 지표, 트렌드 판단 불가**: 09-02·09-03 이틀 수치만 차트로 표시하되, 5일 결측과 전주 비교 불가를 카드에 명시 (render_chart로 실제 SVG)\n5. **알아둘 것 — 의존성 소식 없음**: next/react/supabase/tailwind/typescript/vitest 관련 검색 5건 모두 결과 없음 → 특이사항 없음으로 보고\n\n이 구성(5장, 그중 이슈 제안 1건)으로 진행해도 될까요? 아니면 카드 구성을 다르게 조정할까요?"
+}

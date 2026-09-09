@@ -1,0 +1,41 @@
+{
+  "variant": "E0",
+  "fixture_id": "f4-sparse",
+  "attempt": 1,
+  "run_id": "eval-E0-f4-sparse-1",
+  "started_at": "2026-09-09T11:31:23.620Z",
+  "finished_at": "2026-09-09T11:33:02.005Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 6,
+  "elapsed_seconds": 98.4,
+  "usage_known": true,
+  "total_cost_usd": 0.1519594,
+  "input_tokens": 6,
+  "output_tokens": 8637,
+  "credential_source": "stored_login",
+  "permission_denials": 0,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f4-sparse",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [
+      "series[2026-09-04..2026-09-08]"
+    ],
+    "must_include": [],
+    "must_include_auto_judgeable": 0,
+    "must_include_satisfied": 0,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 1500,
+  "final_text": "## 데이터 확인 결과 (2026-09-02 ~ 2026-09-09, KST)\n\n**시스템 상태** (`get_system_health`)\n- 배포: 총 0건 (ready 0 / error 0) — **확인한 사실**\n- 함수 오류 수: `null`, `unavailable_fields`에 `function_errors.count` 포함 → **확인 못 함** (0건이 아니라 조회 자체가 안 됨)\n\n**사용자 지표** (`get_user_metrics`)\n- 7일 합계: 가입 1, 있템 등록 8, 위시 등록 1, 활성 사용자 5 — 이 값 자체는 **확인한 사실**\n- 다만 일별 시리즈는 09-02·09-03 이틀치만 있고 09-04~09-08 닷새는 `unavailable_fields`에 있음 → **확인 못 함**\n- `previous_period_totals`가 `null` → 지난주 대비 증감은 **비교 불가**\n\n**개발 활동** (`get_dev_activity`)\n- GitHub API 레이트 리밋으로 호출 자체가 실패 (18분 후 재시도 가능) → 이번 주 커밋/이슈/PR **전부 확인 못 함**\n\n**의존성 트렌드** (`web_search` ×3: Next 16.2 / Supabase ssr·js / React 19.2·Tailwind4·Vitest)\n- 세 검색 모두 결과 0건 → 확정적으로 \"새 소식 없음\"이라 말할 수 없고, 검색이 유의미한 결과를 못 찾은 것으로 **확인 못 함**\n\n---\n\n## 제안 스토리보드 (4장)\n\n원래 5~8장이 기준이지만, 이번 주는 절반 가까운 데이터가 결측이라 억지로 채우지 않고 아래 4장으로 제안한다.\n\n| # | 분류 | 내용 |\n|---|------|------|\n| 1 | 지금 손봐야 할 것 | **시스템 상태**: 배포 0건·에러 0건(사실)이라 즉시 조치 대상은 없음. 단 함수 오류 지표가 조회 자체가 안 되는 상태 — 모니터링 연동을 점검할 필요가 있다는 점을 이슈로 제안 |\n| 2 | 지켜볼 것 | **사용자 지표**: 7일 합계(가입 1 / 있템 8 / 위시 1 / 활성 5)를 차트로. 지난주 비교 불가·일별 데이터 5일 결측이라는 한계를 카드에 그대로 명시 |\n| 3 | 확인 못 함 고지 | **개발 활동**: GitHub API 레이트 리밋으로 이번 주 커밋/PR/이슈 데이터를 가져오지 못했다는 사실만 전달 (재시도 가능 시각 포함) |\n| 4 | 알아둘 것 | **의존성 트렌드**: next/react/supabase/tailwind/typescript/vitest 관련 검색 3건 모두 결과 없음 → \"확인된 새 소식 없음\"으로 정리, 안전하다는 단정은 하지 않음 |\n\n카드 2에는 `render_chart`로 합계 막대 차트를 그릴 계획이고, 카드 1의 \"함수 오류 지표 조회 불가\" 건은 `create_github_issue`로 이슈 생성을 제안할 계획이다 (실행 전 승인 필요).\n\n이 구성으로 진행할까, 아니면 카드 순서나 내용을 바꾸고 싶은 부분이 있을까?"
+}

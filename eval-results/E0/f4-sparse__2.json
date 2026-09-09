@@ -1,0 +1,41 @@
+{
+  "variant": "E0",
+  "fixture_id": "f4-sparse",
+  "attempt": 2,
+  "run_id": "eval-E0-f4-sparse-2",
+  "started_at": "2026-09-09T11:33:02.006Z",
+  "finished_at": "2026-09-09T11:35:32.090Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 11,
+  "elapsed_seconds": 150.1,
+  "usage_known": true,
+  "total_cost_usd": 0.2406966,
+  "input_tokens": 8,
+  "output_tokens": 12758,
+  "credential_source": "stored_login",
+  "permission_denials": 1,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f4-sparse",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [
+      "series[2026-09-04..2026-09-08]"
+    ],
+    "must_include": [],
+    "must_include_auto_judgeable": 0,
+    "must_include_satisfied": 0,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 1956,
+  "final_text": "## 「이미 있어」 주간 운영 브리핑 (2026-09-02 ~ 2026-09-09)\n\nrun_id: `eval-E0-f4-sparse-2`\n\n먼저 결론: 이번 주는 **데이터 자체가 곳곳에 비어 있어서** \"문제가 없다\"고 확정해서 말할 수 없는 주다. 그래서 카드 1을 그 공백에 대해 쓰고, 확인된 것과 확인 못 한 것을 구분해 나머지 카드를 구성했다.\n\n---\n\n**카드 1 — 지금 손봐야 할 것: 이번 주 브리핑에 공백이 세 군데 있다**\n- 확인한 사실: `get_system_health`의 `unavailable_fields`에 `function_errors.count` 포함 (값 `null` — 0건이 아니라 조회 실패)\n- 확인한 사실: `get_dev_activity` 호출이 `rate_limited`로 실패 (재시도까지 약 18분)\n- 확인한 사실: `get_user_metrics`의 `unavailable_fields`에 `series[2026-09-04..2026-09-08]`, `previous_period_totals` 포함\n- → 이 세 조회가 동시에 막혀서, 이슈 생성을 제안했다(아래 \"이슈 제안\" 참고).\n\n**카드 2 — 확인된 사실: 배포/에러 현황**\n- `get_system_health`: `deployments: []`, `summary = {total:0, ready:0, error:0}`\n- 이번 기간 배포가 0건이었고, 배포 관련 에러도 0건 (단, 함수 런타임 오류는 카드 1처럼 조회 자체가 안 됨 — 별개 항목)\n\n**카드 3 — 지켜볼 것: 활성 사용자 (09-02, 09-03만 존재)** 📊 `charts/03.svg`\n- 확인한 사실: `get_user_metrics.series` — 09-02 active_users=4, 09-03 active_users=3\n- 09-04~09-08 결측, `previous_period_totals`도 null → 늘었다/줄었다 판단 불가 (추정 금지)\n\n**카드 4 — 지켜볼 것: 있템 등록 (owned_created, 09-02·09-03만)** 📊 `charts/04.svg`\n- 확인한 사실: 09-02=5건, 09-03=3건\n- 참고: wish_created는 09-02=1, 09-03=0으로 값이 너무 작아 별도 차트는 만들지 않았다\n- `totals`(signups:1, owned_created:8, wish_created:1, active_users:5)가 도구 응답에 있었지만, 이게 결측된 5일을 포함한 전체 기간 합계인지 이 두 날짜만의 합인지는 응답만으로 확정할 수 없어 그대로만 인용한다\n\n**카드 5 — 알아둘 것: 이번 주 개발 활동은 파악 못 함**\n- `get_dev_activity` 호출이 `rate_limited` 에러로 실패 (재시도 가능까지 1080초 ≈ 18분)\n- 열린 이슈/커밋/PR 상태는 확인 못 함\n\n**카드 6 — 알아둘 것: 의존성 트렌드 검색 결과 없음**\n- next 16.2.x, react 19.2.x, @supabase/ssr·supabase-js, tailwindcss 4.x, typescript 5.x, vitest에 대해 5건 검색 → 전부 결과 0건\n- 이번 주 해당 의존성의 릴리스노트·보안 권고는 확인 못 함 (검색 결과 없음 자체가 사실이며, \"이상 없음\"으로 해석하지 않음)\n\n---\n\n### 이슈 제안 결과\n카드 1 내용으로 `create_github_issue`를 호출했으나 **사람이 승인하지 않아 생성되지 않았다.** 다시 시도하지 않았다.\n\n### 요약\n- 실제로 그려진 차트: `charts/03.svg` (활성 사용자), `charts/04.svg` (있템 등록)\n- 이번 주는 확인된 사실보다 \"확인 못 함\"이 더 많은 주였다 — 특히 함수 오류 지표, 개발 활동, 09-04~09-08 사용자 지표가 통째로 비어 있어서 카드 수를 억지로 8장까지 채우지 않고 6장으로 정리했다."
+}

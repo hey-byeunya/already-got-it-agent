@@ -116,8 +116,21 @@ export type Hallucination = { kind: 'deploy_id' | 'commit_sha' | 'issue_number' 
 /** 숫자 하나를 쉼표 없는 형태로. "1,234" → 1234 */
 const toNum = (s: string) => Number(s.replace(/,/g, ''));
 
-export function findHallucinations(text: string, fx: Fixture, opts: { allowIssues?: number[] } = {}): Hallucination[] {
+/**
+ * 환각 탐지 결과를 **신뢰도로 나눠** 돌려준다.
+ *
+ * `identifiers` — 배포 ID·커밋 SHA·이슈 번호. 정확한 문자열 일치라 판정이 확실하다.
+ * `metricCandidates` — 지표 낱말 옆의 숫자. **사람 확인이 필요한 후보다.**
+ *
+ * 왜 나누는가: 12시행 동안 지표 값 규칙은 **진짜 환각 0건, 허수 9건**을 냈다.
+ * 자유 문장에서 "이 숫자가 그 지표의 값인가"를 정규식이 안정적으로 판정하지 못한다.
+ * 같은 표에 섞어 세면 신뢰할 수 있는 식별자 판정까지 흐려진다.
+ */
+export function findHallucinations(text: string, fx: Fixture, opts: { allowIssues?: number[] } = {}): {
+  identifiers: Hallucination[]; metricCandidates: Hallucination[];
+} {
   const out: Hallucination[] = [];
+  const metricCandidates: Hallucination[] = [];
   const ids = collectIdentifiers(fx);
   const allowedIssues = new Set([...ids.issues, ...(opts.allowIssues ?? [])]);
 
@@ -149,8 +162,15 @@ export function findHallucinations(text: string, fx: Fixture, opts: { allowIssue
 
     for (const kw of spec.keywords) {
       for (const km of text.matchAll(new RegExp(kw, 'g'))) {
-        // 낱말 뒤 30자만 본다. 문장을 넘어가 엉뚱한 숫자를 끌어오지 않게.
-        const window = text.slice(km.index + km[0].length, km.index + km[0].length + 30);
+        // 낱말 뒤 30자만 보고, **문장 경계에서 자른다.**
+        //
+        // 가장 가까운 개수 하나만 봐도 창이 문장을 넘어가면 다음 지표의 숫자를 집어온다 —
+        //   "배포·빌드는 정상. 함수 오류 3건" → 3 을 배포 수로 봤다
+        //   "…일째, bug). 커밋 14건"        → 14 를 이슈 경과일로 봤다
+        // 둘 다 실제 평가 시행에서 나온 허수다.
+        const raw = text.slice(km.index + km[0].length, km.index + km[0].length + 30);
+        const cut = raw.search(/[.\n!?]/);
+        const window = cut >= 0 ? raw.slice(0, cut) : raw;
 
         // **개수 단위가 붙은 숫자만** 본다.
         //
@@ -162,13 +182,20 @@ export function findHallucinations(text: string, fx: Fixture, opts: { allowIssue
         // **낱말에 가장 가까운 첫 개수만** 본다.
         // 창 안의 모든 개수를 보면 다음 지표의 숫자까지 끌어온다 —
         //   "함수 오류 3건. 가입 19명" → 19 를 함수 오류 값으로 봤다
+        // **개수 단위가 붙은 숫자가 창의 첫 숫자여야 한다.**
+        //
+        // 지표 값을 단위 없이 쓰는 형식이 있다 —
+        //   "활성 사용자 41(43) — 4개 차트" → 41 에 단위가 없어 규칙이 뒤의 "4개"(차트 수)를 집었다
+        // 첫 숫자가 아니면 그 낱말의 값은 단위 없이 쓰인 것이므로 **판정하지 않는다.**
+        // 과소 보고 쪽으로 한 번 더 기운다.
+        const firstNum = /[0-9]/.exec(window);
         const nm = /([0-9][0-9,]*)\s*(건|명|회|개)(?![월일년주간])/.exec(window);
-        if (nm && nm.index !== undefined) {
+        if (nm && nm.index !== undefined && firstNum && nm.index === firstNum.index) {
           const before = window[nm.index - 1];
           if (before !== '#') {          // 식별자는 ③이 이미 봤다
             const n = toNum(nm[1]!);
             if (!allowed.has(n)) {
-              out.push({ kind: 'metric_value', value: String(n), metric: spec.label,
+              metricCandidates.push({ kind: 'metric_value', value: String(n), metric: spec.label,
                 context: `${km[0]}${window.slice(0, nm.index + nm[0].length)}`
                   .replace(/\s+/g, ' ').slice(0, 60) });
             }
@@ -177,7 +204,7 @@ export function findHallucinations(text: string, fx: Fixture, opts: { allowIssue
       }
     }
   }
-  return out;
+  return { identifiers: out, metricCandidates };
 }
 
 export type MissingReadCandidate = { field: string; evidence: string; sentence: string };
@@ -299,7 +326,10 @@ export function checkMustInclude(text: string, fx: Fixture): MustIncludeResult[]
 export type Score = {
   fixture_id: string;
   /** 자동 판정 */
-  hallucinations: Hallucination[];
+  /** 식별자 환각 — 정확한 문자열 일치로 판정한다. 확실하다. */
+  identifier_hallucinations: Hallucination[];
+  /** 지표 값 환각 **후보** — 사람 확인이 필요하다. 자동 집계에 하드 숫자로 쓰지 않는다. */
+  metric_value_candidates: Hallucination[];
   /** 규칙에 걸린 것. **사람 확인이 필요한 후보다** — 문장 판단을 정규식이 대신하지 못한다. */
   missing_misread_candidates: MissingReadCandidate[];
   /** 규칙에 걸렸지만 같은 문장의 불확실성 표시로 올바른 서술이라 판정한 것. */
@@ -316,15 +346,18 @@ export function score(text: string, fx: Fixture, opts: { allowIssues?: number[] 
   const mi = checkMustInclude(text, fx);
   const judgeable = mi.filter((r) => r.tokens.length > 0);
   const mm = findMissingMisreads(text, fx);
+  const h = findHallucinations(text, fx, opts);
   return {
     fixture_id: fx.id,
-    hallucinations: findHallucinations(text, fx, opts),
+    identifier_hallucinations: h.identifiers,
+    metric_value_candidates: h.metricCandidates,
     missing_misread_candidates: mm.candidates,
     missing_misread_cleared: mm.cleared,
     missing_unchecked: mm.unchecked,
     must_include: mi,
     must_include_auto_judgeable: judgeable.length,
     must_include_satisfied: judgeable.filter((r) => r.ok).length,
-    manual: ['근거 미표기율', '과잉 단정률', '우선순위 적중', '결측 오독 후보 확인'],
+    manual: ['근거 미표기율', '과잉 단정률', '우선순위 적중',
+      '결측 오독 후보 확인', '지표 값 환각 후보 확인'],
   };
 }

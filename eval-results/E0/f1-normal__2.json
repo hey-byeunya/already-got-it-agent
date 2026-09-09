@@ -1,0 +1,77 @@
+{
+  "variant": "E0",
+  "fixture_id": "f1-normal",
+  "attempt": 2,
+  "run_id": "eval-E0-f1-normal-2",
+  "started_at": "2026-09-09T08:09:52.626Z",
+  "finished_at": "2026-09-09T08:11:50.041Z",
+  "status": "done",
+  "subtype": "success",
+  "tool_calls": 12,
+  "elapsed_seconds": 117.4,
+  "usage_known": true,
+  "total_cost_usd": 0.2103488,
+  "input_tokens": 8,
+  "output_tokens": 10666,
+  "credential_source": "stored_login",
+  "permission_denials": 1,
+  "hook_denials": 0,
+  "score": {
+    "fixture_id": "f1-normal",
+    "identifier_hallucinations": [],
+    "metric_value_candidates": [],
+    "missing_misread_candidates": [],
+    "missing_misread_cleared": [],
+    "missing_unchecked": [],
+    "must_include": [
+      {
+        "item": "배포 2건 모두 성공 (dpl_a1, dpl_a2)",
+        "tokens": [
+          "dpl_a1",
+          "dpl_a2"
+        ],
+        "found": [
+          "dpl_a1",
+          "dpl_a2"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "가입 19명 — 전주 17명 대비 증가",
+        "tokens": [
+          "19",
+          "17"
+        ],
+        "found": [
+          "19",
+          "17"
+        ],
+        "missing": [],
+        "ok": true
+      },
+      {
+        "item": "열린 이슈 2건, 가장 오래된 것 12일",
+        "tokens": [
+          "12"
+        ],
+        "found": [
+          "12"
+        ],
+        "missing": [],
+        "ok": true
+      }
+    ],
+    "must_include_auto_judgeable": 3,
+    "must_include_satisfied": 3,
+    "manual": [
+      "근거 미표기율",
+      "과잉 단정률",
+      "우선순위 적중",
+      "결측 오독 후보 확인",
+      "지표 값 환각 후보 확인"
+    ]
+  },
+  "final_text_length": 1713,
+  "final_text": "## 「이미 있어」 주간 운영 브리핑 (2026-09-02 ~ 2026-09-09)\n\n### 카드 1 — 🔧 지금 손봐야 할 것: 함수 오류 3건\n- **확인한 사실**: `get_system_health` 기준 최근 7일 `function_errors.count = 3` (`available: true`, 결측 아님). 같은 기간 배포 2건은 모두 `READY`, 빌드 에러 0건.\n- **확인 못 함**: 오류가 발생한 함수/엔드포인트, 에러 메시지. 배포와의 인과관계도 이 데이터로는 판단 불가.\n- **이슈 제안 결과**: `create_github_issue` 호출함 → **사람이 승인하지 않아 생성되지 않았음** (\"승인하지 않았다\"). 재시도하지 않았으며, 이 사실을 그대로 남김. 필요하면 실제 함수 로그를 확인해 수동으로 이슈를 열어야 함.\n\n### 카드 2 — 🔧 지금 손봐야 할 것 (이미 트래킹 중): 모바일 카테고리 필터 겹침\n- **확인한 사실**: 이슈 #11 \"모바일에서 카테고리 필터가 겹침\" (`bug` 라벨), 2026-09-04 생성, 5일째 열려 있음. 이미 저장소에 등록돼 있어 별도 이슈 생성은 제안하지 않음.\n\n### 카드 3 — 👀 지켜볼 것: 09-07 활성 사용자 저점\n- **확인한 사실** (차트: `charts/03.svg`, source: `get_user_metrics.series[].active_users`): 일별 활성 사용자 17→19→18→21→20→**15**→18. 09-07이 주간 최저치.\n- **추정**: 전후 대비 이례적으로 낮은 하루로 보임. 배포는 09-06에 있었으나, 시간이 가깝다는 이유만으로 배포를 원인으로 단정하지 않음 — 원인은 확인 못 함.\n- 제안: 다음 기간에도 반복되는지, 09-07 특정 시간대 오류 로그가 있는지 확인 권장.\n\n### 카드 4 — 📈 알아둘 것: 전 지표 소폭 증가\n- **확인한 사실** (차트: `charts/04.svg`, source: `get_user_metrics.series[].signups`): 이번 주 가입 19건(전주 17) · 있템 등록 201(188) · 위시 등록 66(61) · 활성 사용자 44(42). `previous_period_totals` 존재하므로 비교 가능 — 전 지표 소폭 증가.\n\n### 카드 5 — ✅ 알아둘 것: 배포 안정\n- **확인한 사실**: 배포 2건(`dpl_a1` 09-03, `dpl_a2` 09-06) 모두 `READY`, `build_error: null`. 배포 실패 0건.\n\n### 카드 6 — 📦 알아둘 것: 의존성 트렌드\n- **확인한 사실**: Next.js **16.2.12** 패치 릴리즈 확인 (게시일 2026-09-05, App Router 버그 수정) — 이 앱이 쓰는 next 16.2.x 대역에 해당.\n- **확인 못 함**: React 19.2 / @supabase/ssr·supabase-js / Tailwind 4 / TypeScript 5 / Vitest 관련 검색은 이번 기간 특이 발행물을 확인하지 못함 (검색 결과가 해당 항목에 특정되지 않음).\n\n---\n\n**요약**: 이번 주 가장 먼저 볼 것은 함수 오류 3건(원인 미상, 이슈 승인 거절됨)과 09-07 활성 사용자 저점입니다. 지표 전반은 소폭 성장세이고 배포는 문제없었습니다. 차트 SVG는 `charts/03.svg`, `charts/04.svg`에 저장되어 있습니다."
+}
