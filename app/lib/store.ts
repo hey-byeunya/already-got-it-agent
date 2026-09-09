@@ -12,7 +12,8 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { RUNS_DIR } from './paths';
-import type { PendingApproval, PendingQuestion, RunState, RunStatus, TraceEvent } from './types';
+import type { PendingApproval, PendingQuestion, RunState, RunStatus, TraceEvent, RunRow } from './types';
+import { readCards, resultLine } from './derive';
 
 /** 이 프로세스가 살아 있는 동안만 유효한 것들. */
 type LiveHandles = {
@@ -60,17 +61,31 @@ export function writeState(s: RunState): void {
   writeFileSync(statePath(s.run_id), JSON.stringify({ ...persisted, live: false }, null, 2));
 }
 
-export function listRuns(): { run_id: string; status: RunStatus; created_at: string; fixture_id: string | null; engine: 'claude' | 'opencode' }[] {
+export function listRuns(): RunRow[] {
   if (!existsSync(RUNS_DIR)) return [];
-  const out: { run_id: string; status: RunStatus; created_at: string; fixture_id: string | null; engine: 'claude' | 'opencode' }[] = [];
+  const out: RunRow[] = [];
   for (const name of readdirSync(RUNS_DIR)) {
     const s = readState(name);
-    if (s) out.push({ run_id: s.run_id, status: s.status, created_at: s.created_at, fixture_id: s.fixture_id, engine: s.engine ?? 'claude' });
+    if (!s) continue;
+    out.push({
+      run_id: s.run_id,
+      status: s.status,
+      created_at: s.created_at,
+      fixture_id: s.fixture_id,
+      engine: s.engine ?? 'claude',
+      // 사용량을 못 받은 실행은 **모르는 것**이다. 0 으로 적으면 «비용이 안 들었다»가 된다.
+      cost: s.usage && s.usage.usage_known ? s.usage.total_cost_usd : null,
+      result: resultLine(s, readCards(s.run_id).length),
+    });
   }
   return out.sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-export function createRun(init: { runId: string; fixtureId: string | null; goal: string; engine?: 'claude' | 'opencode' }): RunState {
+export function createRun(init: {
+  runId: string; fixtureId: string | null; goal: string;
+  engine?: 'claude' | 'opencode';
+  focus?: string; period?: { since: string; until: string };
+}): RunState {
   const now = new Date().toISOString();
   const s: RunState = {
     run_id: init.runId,
@@ -88,6 +103,8 @@ export function createRun(init: { runId: string; fixtureId: string | null; goal:
     usage: null,
     charts: [],
     live: true,
+    ...(init.focus ? { focus: init.focus } : {}),
+    ...(init.period ? { period: init.period } : {}),
   };
   writeState(s);
   return s;

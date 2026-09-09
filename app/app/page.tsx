@@ -1,12 +1,24 @@
 'use client';
 
+/**
+ * 홈 — 터미널 화면.
+ *
+ * 왼쪽 [ RUNS ] 는 지난 실행을 결과 한 줄과 비용까지 함께 보여준다.
+ * 오른쪽 [ NEW RUN ] · [ PRESETS ] · [ SAVED ] 는 새 실행을 거는 자리다.
+ *
+ * 비용을 모르는 실행은 «확인 못 함» 으로 그린다 — 0 으로 적으면 거짓 보고가 된다.
+ */
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { SectionHead, StatusBadge } from '@/components/term';
+import type { RunLimits, RunRow } from '@/lib/types';
 
 type Listing = {
-  runs: { run_id: string; status: string; created_at: string; fixture_id: string | null }[];
-  fixtures: string[];
+  runs: RunRow[];
+  fixtures: { id: string; label: string }[];
   credential_source: 'api_key' | 'auth_token' | 'stored_login';
+  limits: RunLimits;
 };
 
 type Engine = 'claude' | 'opencode';
@@ -19,16 +31,17 @@ type Favorite = {
 /** 픽스처 4종을 요청 프리셋으로 푼 추천 목록. 직접 입력 없이 한 번에 시작한다. */
 const PRESETS: { fixture: string; name: string; desc: string; focus: string }[] = [
   { fixture: 'f1-normal', name: '평범한 주간 점검',
-    desc: '문제가 없을 때 없다고 말하는지 확인한다. 억지 진단을 경계한다.', focus: '' },
+    desc: '문제가 없을 때 없다고 말하는지 — 억지 진단 경계', focus: '' },
   { fixture: 'f2-deploy-fail', name: '배포 실패 추적',
-    desc: '실패한 배포와 빌드 오류 원문, 복구 여부를 카드로 확인한다.', focus: '시스템' },
+    desc: '빌드 오류 원문과 복구 여부 · 축 system', focus: '시스템' },
   { fixture: 'f3-metric-drop', name: '지표 급감 살펴보기',
-    desc: '전주 대비 추이는 보되 원인은 단정하지 않는지 확인한다.', focus: '사용자' },
+    desc: '추이는 보되 원인은 단정하지 않는지', focus: '사용자' },
   { fixture: 'f4-sparse', name: '자료 부족 브리핑',
-    desc: '결측과 0을 구별하고 카드 수를 억지로 채우지 않는지 확인한다.', focus: '' },
+    desc: '결측과 0 을 구별하는지 · 카드 수를 억지로 안 채우는지', focus: '' },
 ];
 
 const FAV_KEY = 'ops-briefing-favorites';
+const NARROW = 1080;
 
 function loadFavorites(): Favorite[] {
   try {
@@ -49,12 +62,20 @@ export default function Home() {
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [narrow, setNarrow] = useState(false);
+
+  useEffect(() => {
+    const check = () => setNarrow(window.innerWidth < NARROW);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     setFavorites(loadFavorites());
     fetch('/api/runs').then((r) => r.json()).then((d: Listing) => {
       setData(d);
-      if (d.fixtures.length && !d.fixtures.includes(fixture)) setFixture(d.fixtures[0]!);
+      if (d.fixtures.length && !d.fixtures.some((f) => f.id === fixture)) setFixture(d.fixtures[0]!.id);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -113,159 +134,216 @@ export default function Home() {
     saveFavorites([fav, ...favorites].slice(0, 20));
   }
 
+  const runs = data?.runs ?? [];
+  const tally = {
+    ok: runs.filter((r) => r.status === 'done').length,
+    halted: runs.filter((r) => r.status === 'stopped' || r.status === 'interrupted').length,
+    failed: runs.filter((r) => r.status === 'failed').length,
+  };
+  const rowCols = narrow ? 'minmax(0,1fr) auto' : '190px 168px minmax(0,1fr) 96px';
+  const lim = data?.limits;
+
   return (
     <main>
-      <h1>「이미 있어」 주간 운영 브리핑</h1>
-      <p className="sub">
-        시스템 상태 · 사용자 지표 · 개발 활동 · IT 트렌드 네 축을 읽어 카드뉴스 한 편으로 넘긴다.
-      </p>
-
-      {data && (
-        <div className="panel">
-          <strong>자격증명</strong>
-          <p className="note">
-            {data.credential_source === 'api_key'
-              ? 'ANTHROPIC_API_KEY — 비용이 API 사용량 크레딧에서 빠진다.'
-              : data.credential_source === 'auth_token'
-                ? 'ANTHROPIC_AUTH_TOKEN 을 쓴다.'
-                : '환경변수에 키가 없다 — SDK 가 저장된 로그인(구독)으로 시도한다.'}
-            {' '}환경변수 키가 없다고 자격증명이 없다는 뜻은 아니므로 실행을 막지 않는다.
-            {' '}Claude 크레딧이 바닥나면 아래 엔진에서 opencode를 고른다
-            (opencode 자체 인증·모델을 쓴다).
-          </p>
-        </div>
-      )}
-
-      <h2>추천 브리핑</h2>
-      <p className="note">픽스처 4종을 요청서로 풀었다. 고르면 바로 시작한다.</p>
-      <div className="panel">
-        {PRESETS.map((p) => (
-          <div key={p.fixture} className="spread" style={{ padding: '8px 0' }}>
-            <span>
-              <strong>{p.name}</strong>
-              <span className="note" style={{ display: 'block' }}>
-                {p.fixture} · {p.desc}
-                {p.focus ? ` 깊게 볼 축: ${p.focus}` : ' 깊게 볼 축: 에이전트 판단'}
-              </span>
-            </span>
-            <button onClick={() => void startRun({ fixture_id: p.fixture, focus: p.focus, engine, model })}
-              disabled={starting}>
-              시작
-            </button>
-          </div>
-        ))}
+      <div className="sechead" style={{ letterSpacing: '.16em', color: 'var(--muted)', marginBottom: 9 }}>
+        [ HOME ]
       </div>
 
-      <div className="panel">
-        <h2 style={{ marginTop: 0 }}>직접 입력</h2>
-        <div className="row">
-          <label style={{ flex: 1, minWidth: 220 }}>
-            <span className="note" style={{ display: 'block' }}>깊게 볼 축 (비우면 에이전트가 판단)</span>
-            <input type="text" value={focus} onChange={(e) => setFocus(e.target.value)}
-              placeholder="예: 시스템" style={{ width: '100%' }} />
-          </label>
-        </div>
-        <div className="row" style={{ marginTop: 10 }}>
-          <label>
-            <span className="note" style={{ display: 'block' }}>엔진</span>
-            <select value={engine} onChange={(e) => setEngine(e.target.value as Engine)}>
-              <option value="claude">claude (Agent SDK)</option>
-              <option value="opencode">opencode (별도 인증·모델)</option>
-            </select>
-          </label>
-          {engine === 'opencode' && (
-            <label style={{ flex: 1, minWidth: 220 }}>
-              <span className="note" style={{ display: 'block' }}>모델 (무료 목록에서 선택)</span>
-              {freeModels.length > 0 ? (
-                <select value={model} onChange={(e) => setModel(e.target.value)}
-                  style={{ width: '100%' }}>
-                  {freeModels.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.id})</option>
-                  ))}
-                </select>
-              ) : (
-                <span className="note">{modelsNote ?? '불러오는 중…'}</span>
-              )}
-            </label>
-          )}
-        </div>
-        {engine === 'opencode' && (
-          <p className="note">
-            opencode 모드는 질문 대기·승인 없이 끝까지 간다. 이슈 생성·되돌리기는 쓸 수 없고
-            제안은 본문에 적힌다. 인증은 opencode 쪽 설정(`opencode auth`)을 따른다.
+      <div className="win" style={{ padding: '20px 22px' }}>
+        <div style={{ paddingBottom: 16, borderBottom: '1px solid var(--line)' }}>
+          <h1 className="prose" style={{ fontSize: 22, color: 'var(--ink)' }}>
+            「이미 있어」 주간 운영 브리핑
+          </h1>
+          <p className="prose" style={{ fontSize: 13.5, lineHeight: 1.7, margin: '7px 0 0' }}>
+            시스템 · 사용자 · 개발 활동 · IT 트렌드 네 축을 읽어 카드뉴스 한 편으로 넘긴다.
           </p>
-        )}
-        <div className="row" style={{ marginTop: 10 }}>
-          <button className="primary" onClick={() => void startRun({ fixture_id: fixture, focus, engine, model })}
-            disabled={starting}>
-            {starting ? '시작하는 중…' : '브리핑 시작'}
-          </button>
-          <button onClick={addFavorite} disabled={starting} title="지금 입력값을 즐겨찾기에 저장">
-            ★ 저장
-          </button>
-          {error && <span style={{ color: 'var(--danger)' }}>{error}</span>}
         </div>
-        <p className="note">
-          픽스처 모드다 — 외부 API 를 부르지 않고, 쓰기 도구도 실제 GitHub 을 바꾸지 않는다.
-        </p>
-      </div>
 
-      {favorites.length > 0 && (
-        <>
-          <h2>즐겨찾기</h2>
-          <div className="panel">
-            {favorites.map((f) => (
-              <div key={f.id} className="spread" style={{ padding: '8px 0' }}>
-                <span>
-                  <strong>{f.fixture_id}</strong>
-                  <span className="note" style={{ display: 'block' }}>
-                    {f.focus ? `깊게 볼 축: ${f.focus}` : '깊게 볼 축: 에이전트 판단'}
-                    {` · 엔진: ${f.engine}`}{f.model ? ` · 모델: ${f.model}` : ''}
-                  </span>
-                </span>
-                <span className="row">
-                  <button onClick={() => void startRun({
-                    fixture_id: f.fixture_id, focus: f.focus, engine: f.engine, model: f.model,
-                  })} disabled={starting}>
-                    시작
-                  </button>
-                  <button onClick={() => saveFavorites(favorites.filter((x) => x.id !== f.id))}>
-                    삭제
-                  </button>
-                </span>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: narrow ? 'minmax(0,1fr)' : 'minmax(0,1fr) 300px',
+          gap: 26, paddingTop: 18, alignItems: 'start',
+        }}>
+
+          {/* ─────────────────────── [ RUNS ] */}
+          <div style={{ minWidth: 0 }}>
+            <SectionHead label={
+              `[ RUNS ] ${runs.length} · ok ${tally.ok} · halted ${tally.halted} · failed ${tally.failed}`
+            } />
+
+            {!data && <div className="note">불러오는 중…</div>}
+            {data && runs.length === 0 && (
+              <div className="note">아직 실행이 없다. 오른쪽에서 하나 걸어 본다.</div>
+            )}
+
+            {!narrow && runs.length > 0 && (
+              <div style={{
+                display: 'grid', gridTemplateColumns: rowCols, gap: 12, padding: '7px 0',
+                borderBottom: '1px solid var(--line)',
+                fontSize: 11, letterSpacing: '.1em', color: 'var(--muted)',
+              }}>
+                <span>RUN</span><span>STATUS</span><span>RESULT</span>
+                <span style={{ textAlign: 'right' }}>COST</span>
               </div>
-            ))}
+            )}
+
+            {runs.map((r) => {
+              const cost = (
+                <span className={r.cost === null ? 'wrn' : 'mut'}>
+                  {r.cost === null ? '확인 못 함' : `$${r.cost.toFixed(2)}`}
+                </span>
+              );
+              return (
+                <div key={r.run_id} style={{
+                  display: 'grid', gridTemplateColumns: rowCols, gap: 12, alignItems: 'center',
+                  padding: '11px 0', borderBottom: '1px solid var(--line-faint)', fontSize: 12,
+                }}>
+                  <span style={{ minWidth: 0 }}>
+                    <Link href={`/runs/${r.run_id}`}>{r.run_id}</Link>
+                    <br />
+                    <span className="mut" style={{ fontSize: 11 }}>
+                      {r.engine}{r.fixture_id ? ` · ${r.fixture_id}` : ' · live'}
+                    </span>
+                  </span>
+                  <span style={{ justifySelf: 'start' }}><StatusBadge status={r.status} /></span>
+                  {narrow ? (
+                    // 좁으면 결과와 비용을 한 줄로 묶는다.
+                    // 4열 그대로 접으면 비용이 혼자 떨어져 어느 실행 것인지 읽히지 않는다.
+                    <span style={{
+                      gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between',
+                      gap: 12, alignItems: 'baseline',
+                    }}>
+                      <span className="prose" style={{ fontSize: 12, color: 'var(--muted)' }}>{r.result}</span>
+                      {cost}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="prose" style={{ fontSize: 12.5, color: 'var(--text)' }}>{r.result}</span>
+                      <span style={{ textAlign: 'right' }}>{cost}</span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </>
-      )}
 
-      <h2>지난 실행</h2>
-      {!data ? <p className="note">불러오는 중…</p>
-        : data.runs.length === 0 ? <p className="note">아직 없다.</p> : (
-        <div className="panel">
-          {data.runs.map((r) => (
-            <div key={r.run_id} className="spread" style={{ padding: '8px 0' }}>
-              <Link href={`/runs/${r.run_id}`}>{r.run_id}</Link>
-              <span className="row">
-                <span className="note">{r.fixture_id ?? '실제'}</span>
-                <span className={`badge ${r.status}`}>{r.status}</span>
-              </span>
+          {/* ─────────────────────── 사이드바 */}
+          <div style={{ border: '1px solid var(--line)', background: 'var(--raised)', padding: 16 }}>
+            <SectionHead label="[ NEW RUN ]" />
+
+            <div className="note" style={{ marginBottom: 6 }}>--axis</div>
+            <input type="text" value={focus} onChange={(e) => setFocus(e.target.value)}
+              placeholder="비우면 에이전트가 판단" style={{ marginBottom: 14 }} />
+
+            <div className="note" style={{ marginBottom: 6 }}>--engine</div>
+            <div className="row" style={{ gap: 6, marginBottom: 10 }}>
+              <button className="seg" aria-pressed={engine === 'claude'} onClick={() => setEngine('claude')}>claude</button>
+              <button className="seg" aria-pressed={engine === 'opencode'} onClick={() => setEngine('opencode')}>opencode</button>
             </div>
-          ))}
-        </div>
-      )}
 
-      <div className="panel">
-        <h2 style={{ marginTop: 0 }}>픽스처</h2>
-        <div className="row">
-          <label>
-            <span className="note" style={{ display: 'block' }}>평가·캡처 재현용 (직접 입력에 쓴다)</span>
+            {engine === 'claude' ? (
+              <div className="note" style={{ marginBottom: 12 }}>
+                Agent SDK · 자격증명은 <span className="ink">{credShort(data?.credential_source)}</span>
+                <br />질문 대기 · 승인 게이트가 모두 돈다
+              </div>
+            ) : (
+              <>
+                <div className="note" style={{ marginBottom: 6 }}>
+                  --model <span className="ok">무료 목록</span>
+                </div>
+                {freeModels.length > 0 ? (
+                  <select value={model} onChange={(e) => setModel(e.target.value)}>
+                    {freeModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                ) : (
+                  <div className="note">{modelsNote ?? '불러오는 중…'}</div>
+                )}
+                <div className="note" style={{ margin: '8px 0 12px' }}>
+                  단가표가 정본이다 — input·output 이 둘 다 0 인 것만 담았다.
+                  <br /><span className="wrn">주의</span> opencode 모드는 질문 대기·승인 없이 끝까지 간다.
+                  이슈 생성·되돌리기는 쓸 수 없고 제안은 본문에 적힌다.
+                </div>
+              </>
+            )}
+
+            <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+              <button className="primary" style={{ flex: 1 }} disabled={starting}
+                onClick={() => void startRun({ fixture_id: fixture, focus, engine, model })}>
+                brief run ↵
+              </button>
+              <button onClick={addFavorite} disabled={starting}
+                style={{ padding: '10px 12px' }} title="지금 입력값을 즐겨찾기에 저장">★</button>
+            </div>
+            {error && <div className="note bad" style={{ marginTop: 8 }}>{error}</div>}
+
+            <div className="note" style={{ margin: '14px 0 6px' }}>--fixture</div>
             <select value={fixture} onChange={(e) => setFixture(e.target.value)}>
-              {(data?.fixtures ?? []).map((f) => <option key={f} value={f}>{f}</option>)}
+              {(data?.fixtures ?? []).map((f) => (
+                <option key={f.id} value={f.id}>{f.id} — {f.label}</option>
+              ))}
             </select>
-          </label>
+            <div className="note" style={{ marginTop: 9 }}>
+              {lim && <>limits: iter {lim.maxTurns} · tool {lim.maxToolCalls} · ${lim.maxBudgetUsd} · {lim.maxElapsedSeconds}s<br /></>}
+              fixture 모드 · 외부 API 호출 없음
+            </div>
+
+            {/* PRESETS */}
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+              <SectionHead label="[ PRESETS ]" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 11.5 }}>
+                {PRESETS.map((p) => (
+                  <div key={p.fixture} style={{
+                    display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 8, alignItems: 'baseline',
+                  }}>
+                    <span>
+                      <span className="ink">{p.fixture}</span>
+                      <br /><span className="mut">{p.desc}</span>
+                    </span>
+                    <button className="chip" disabled={starting}
+                      onClick={() => void startRun({ fixture_id: p.fixture, focus: p.focus, engine, model })}>
+                      run ↵
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* SAVED */}
+            {favorites.length > 0 && (
+              <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+                <SectionHead label={`[ SAVED ] ${favorites.length}`} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 11.5 }}>
+                  {favorites.map((f) => (
+                    <div key={f.id} style={{
+                      display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto auto', gap: 8, alignItems: 'baseline',
+                    }}>
+                      <span>
+                        <span className="ink">{f.fixture_id} · {f.focus || '에이전트 판단'}</span>
+                        <br /><span className="mut">engine {f.engine}{f.model ? ` · ${f.model}` : ''}</span>
+                      </span>
+                      <button className="chip" disabled={starting} onClick={() => void startRun({
+                        fixture_id: f.fixture_id, focus: f.focus, engine: f.engine, model: f.model,
+                      })}>run</button>
+                      <button className="chip" onClick={() => saveFavorites(favorites.filter((x) => x.id !== f.id))}>
+                        del
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </main>
   );
+}
+
+function credShort(src?: 'api_key' | 'auth_token' | 'stored_login'): string {
+  switch (src) {
+    case 'api_key': return 'ANTHROPIC_API_KEY';
+    case 'auth_token': return 'ANTHROPIC_AUTH_TOKEN';
+    case 'stored_login': return '저장된 로그인(구독)';
+    default: return '확인 중';
+  }
 }

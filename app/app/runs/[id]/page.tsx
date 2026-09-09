@@ -1,48 +1,107 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { use } from 'react';
+/**
+ * 실행 상세 — 터미널 화면.
+ *
+ * 위에서 아래로: 타이틀바 · 프롬프트 헤더 · 계기 3분할 · 게이트(승인/질문/중단/종료) ·
+ * 사람이 결정한 것 · 본문 2단(카드 또는 원고 | 로그).
+ *
+ * 화면이 지켜야 할 것 두 가지:
+ *  1. **모르는 것을 0 으로 그리지 않는다.** usage_known:false 는 «확인 못 함» 이다.
+ *  2. **누를 수 없는 버튼을 보여주지 않는다.** 콜백이 사라진 대기는 무효로 표시하고 비활성한다.
+ */
 
-type Trace = { seq: number; at: string; kind: string; label: string; detail?: string; isError?: boolean };
-type Question = { question: string; header: string; options: { label: string; description: string }[] };
-type State = {
-  run_id: string; fixture_id: string | null; status: string; goal: string;
-  engine?: 'claude' | 'opencode';
-  session_id?: string; trace: Trace[];
-  pending_question: { question_id: string; version: number; questions: Question[] } | null;
-  pending_approval: { approval_id: string; version: number; tool: string; summary: Record<string, unknown> } | null;
-  answered: { question_id: string; answers: Record<string, string> }[];
-  decisions: { approval_id: string; tool: string; approved: boolean; reason?: string; at: string }[];
-  usage: {
-    usage_known: boolean; input_tokens: number; output_tokens: number;
-    cache_read_input_tokens: number; total_cost_usd: number;
-    cost_is_estimate: true; unknown_reason?: string;
-  } | null;
-  stop_reason?: { limit: string; message: string; observed: number; allowed: number };
-  final_text?: string;
-  charts: { card_no: number; svg_path: string }[];
-  live: boolean;
-  credential_source?: 'api_key' | 'auth_token' | 'stored_login';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import {
+  Bar, Cursor, Gauge, Lights, SectionHead, StatusBadge, TERMINAL_STATUSES, clock,
+} from '@/components/term';
+import type { CardView, RunDetail, Step, TraceEvent } from '@/lib/types';
+
+type Conflict = { code: string; message: string };
+
+const POLL_MS = 1200;
+const NARROW = 1080;
+
+/** 트레이스 kind → 글리프와 색. kind 는 원래 저장되는데 전에는 화면이 버렸다. */
+function glyph(e: TraceEvent): { mark: string; cls: string; group: 'tool' | 'think' | 'err' } {
+  if (e.isError || e.kind === 'error' || e.kind === 'hook_denied') {
+    return { mark: '✕', cls: 'bad', group: 'err' };
+  }
+  switch (e.kind) {
+    case 'tool_use': return { mark: '→', cls: 'ok', group: 'tool' };
+    case 'tool_result': return { mark: '←', cls: 'mut', group: 'tool' };
+    case 'question_waiting': return { mark: '?', cls: 'wrn', group: 'think' };
+    case 'question_answered':
+    case 'question_declined': return { mark: '?', cls: 'mut', group: 'think' };
+    case 'approval_waiting': return { mark: '!', cls: 'bad', group: 'think' };
+    case 'approval_granted': return { mark: '✓', cls: 'ok', group: 'think' };
+    case 'approval_denied': return { mark: '✕', cls: 'bad', group: 'think' };
+    case 'stopped': return { mark: '■', cls: 'wrn', group: 'err' };
+    default: return { mark: '·', cls: 'mut', group: 'think' };
+  }
+}
+
+const SEVERITY: Record<CardView['severity'], { line: string; bg: string; ink: string }> = {
+  FIX_NOW: { line: 'var(--danger)', bg: 'rgba(226,96,75,.16)', ink: 'var(--danger-ink)' },
+  WATCH: { line: 'var(--warn)', bg: 'rgba(232,192,78,.14)', ink: 'var(--warn)' },
+  METRICS: { line: 'var(--muted)', bg: 'var(--line-in)', ink: 'var(--muted)' },
+  FYI: { line: 'var(--muted)', bg: 'var(--line-in)', ink: 'var(--muted)' },
+  COVER: { line: 'var(--accent)', bg: 'rgba(78,224,138,.14)', ink: 'var(--accent)' },
 };
 
-const TERMINAL = new Set(['done', 'stopped', 'failed', 'interrupted']);
+const STEP_MARK: Record<Step['state'], { g: string; cls: string }> = {
+  done: { g: '✓', cls: 'ok' },
+  current: { g: '◆', cls: 'wrn' },
+  pending: { g: '·', cls: 'mut' },
+};
 
 export default function RunPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [s, setS] = useState<State | null>(null);
+  const [s, setS] = useState<RunDetail | null>(null);
+  /** 불러오지 못한 이유. null 이면 아직 시도 중이거나 정상이다. */
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [conflict, setConflict] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [view, setView] = useState<'card' | 'raw'>('card');
+  const [showLog, setShowLog] = useState(true);
+  const [meter, setMeter] = useState<'budget' | 'usage'>('budget');
+  const [gate, setGate] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'tool' | 'think' | 'err'>('all');
+  const [narrow, setNarrow] = useState(false);
+  const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swipeX = useRef<number | null>(null);
+
+  useEffect(() => {
+    const check = () => setNarrow(window.innerWidth < NARROW);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const poll = useCallback(async () => {
-    const res = await fetch(`/api/runs/${id}`, { cache: 'no-store' });
-    if (res.ok) {
-      const next = await res.json() as State;
-      setS(next);
-      // 끝난 실행은 더 두드리지 않는다.
-      if (!TERMINAL.has(next.status)) timer.current = setTimeout(poll, 1200);
+    let res: Response;
+    try {
+      res = await fetch(`/api/runs/${id}`, { cache: 'no-store' });
+    } catch {
+      // 서버가 죽었거나 연결이 끊겼다. 계속 도는 대신 멈추고 알린다.
+      setLoadError('서버에 연결하지 못했다. 개발 서버가 떠 있는지 확인한다.');
+      return;
     }
+    if (!res.ok) {
+      // 404 를 그냥 넘기면 화면이 «불러오는 중» 에서 영원히 멈춘다 —
+      // CLI 로 돌린 실행처럼 ui-state.json 이 없는 폴더에서 실제로 그랬다.
+      setLoadError(res.status === 404
+        ? '이 실행의 화면 상태가 없다. CLI 로 돌린 실행은 화면 상태(ui-state.json)를 남기지 않는다.'
+        : `실행 상태를 불러오지 못했다 (HTTP ${res.status})`);
+      return;
+    }
+    setLoadError(null);
+    const next = await res.json() as RunDetail;
+    setS(next);
+    // 끝난 실행은 더 두드리지 않는다.
+    if (!TERMINAL_STATUSES.has(next.status)) timer.current = setTimeout(() => void poll(), POLL_MS);
   }, [id]);
 
   useEffect(() => {
@@ -56,258 +115,587 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
-      setConflict(b.message ?? b.error ?? `요청 실패 (${res.status})`);
+      const b = await res.json().catch(() => ({})) as { error?: string; message?: string };
+      setConflict({ code: b.error ?? String(res.status), message: b.message ?? '요청이 거절됐다' });
     }
     setBusy(false);
-    void poll();
+    await poll();
   }
 
-  if (!s) return <main><p className="note">불러오는 중…</p></main>;
+  const shown = useMemo(
+    () => (s ? s.trace.filter((e) => filter === 'all' || glyph(e).group === filter) : []),
+    [s, filter],
+  );
+  const counts = useMemo(() => {
+    const c = { tool: 0, think: 0, err: 0 };
+    for (const e of s?.trace ?? []) c[glyph(e).group] += 1;
+    return c;
+  }, [s]);
 
+  if (loadError) {
+    return (
+      <main>
+        <div className="win">
+          <div className="titlebar">
+            <div className="row" style={{ gap: 12 }}>
+              <Lights />
+              <span className="mut">ops-brief</span><span className="fnt">—</span>
+              <span className="ink">run/{id}</span>
+            </div>
+            <Link href="/" className="mut" style={{ fontSize: 11 }}>cd ..</Link>
+          </div>
+          <div className="strip warn" style={{ borderBottom: 'none' }}>
+            <div><span className="wrn">✕</span> <b>불러오지 못했다</b></div>
+            <div className="mut">{loadError}</div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+  if (!s) return <main><span className="mut">불러오는 중<Cursor /></span></main>;
+
+  const dead = !s.live;
+  const askable = Boolean(s.pending_question) && s.live;
+  const approvable = Boolean(s.pending_approval) && s.live;
+  const elapsed = (Date.parse(s.updated_at) - Date.parse(s.created_at)) / 1000;
+  const toolCalls = s.trace.filter((e) => e.kind === 'tool_use').length;
   const u = s.usage;
+  // 상한이 재는 것은 «캐시 읽기를 뺀» 입력이다 (agent/src/usage.ts 의 freshInputTokens).
+  // 캐시 읽기까지 더하면 상한을 한참 넘겨 보인다 — 실제 실행에서 겪은 함정이다.
+  const freshInput = u && u.usage_known
+    ? u.input_tokens + u.cache_creation_input_tokens
+    : null;
+  const known = Boolean(u?.usage_known);
+  const lim = s.limits;
+
+  const bottomCols = narrow || !showLog ? 'minmax(0,1fr)' : 'minmax(0,1fr) 372px';
 
   return (
     <main>
-      <div className="spread">
-        <h1>{s.run_id}</h1>
-        <span className={`badge ${s.status}`}>{s.status}</span>
-      </div>
-      <p className="sub">
-        픽스처 {s.fixture_id ?? '실제'} · 엔진 {s.engine ?? 'claude'}
-        {s.engine === 'opencode' && ' (질문·승인 없이 진행, 이슈 도구는 꺼짐)'}
-        {' · '}{s.live ? '이 서버가 실행 중' : '이 서버가 들고 있지 않음'}
-        {' · '}<Link href="/">목록</Link>
-      </p>
+      <div className="win">
 
-      {conflict && (
-        <div className="panel" style={{ borderColor: 'var(--warn)' }}>
-          <strong>요청이 거절됐다</strong>
-          <p className="note">{conflict}</p>
-        </div>
-      )}
-
-      {/* ── 지난 질문 (중단돼 무효) ────────────────────────── */}
-      {s.pending_question && !s.live && (
-        <div className="panel">
-          <strong className="note">걸려 있던 질문 (무효)</strong>
-          <p className="note">
-            이 질문을 기다리던 콜백이 사라졌다. 지금 답해도 작업은 이어지지 않는다.
-            아래에서 재개하면 에이전트가 다시 묻는다.
-          </p>
-          <pre>{s.pending_question.questions.map((q) => q.question).join('\n')}</pre>
-        </div>
-      )}
-
-      {/* ── 질문 대기 ─────────────────────────────────────── */}
-      {s.pending_question && s.live && (
-        <div className="panel" style={{ borderColor: 'var(--warn)' }}>
-          <div className="spread">
-            <strong>질문 대기</strong>
-            <span className="note">버전 {s.pending_question.version}</span>
+        {/* ─────────────────────────── 타이틀 바 */}
+        <div className="titlebar">
+          <div className="row" style={{ gap: 12 }}>
+            <Lights />
+            <span className="mut">ops-brief</span><span className="fnt">—</span>
+            <span className="ink">run/{s.run_id}</span>
+            <span className="fnt">·</span>
+            <span className="mut">{s.fixture_id ?? 'live'}</span>
+            <Link href="/" className="mut" style={{ fontSize: 11 }}>cd ..</Link>
           </div>
-          <p className="note">답하기 전에는 다음 단계로 넘어가지 않는다. 이 상태는 정상이다.</p>
-          {s.pending_question.questions.map((q) => (
-            <div key={q.question} style={{ marginTop: 14 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>{q.question}</div>
-              {q.options.map((o) => (
-                <button key={o.label} className="opt" disabled={busy}
-                  onClick={() => post('answers', {
-                    question_id: s.pending_question!.question_id,
-                    version: s.pending_question!.version,
-                    answers: { [q.question]: o.label },
-                  })}>
-                  <span className="l">{o.label}</span>
-                  {o.description && <div className="d">{o.description}</div>}
-                </button>
-              ))}
+          <div className="row" style={{ gap: 8 }}>
+            <StatusBadge status={s.status} pendingApproval={Boolean(s.pending_approval)} />
+            <div className="tabs">
+              <button className="tab" aria-pressed={view === 'card'} onClick={() => setView('card')}>--cards</button>
+              <button className="tab" aria-pressed={view === 'raw'} onClick={() => setView('raw')}>--raw</button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── 지난 승인 요청 (중단돼 무효) ───────────────────── */}
-      {s.pending_approval && !s.live && (
-        <div className="panel">
-          <strong className="note">걸려 있던 승인 요청 (무효) — {s.pending_approval.tool}</strong>
-          <p className="note">
-            기다리던 콜백이 사라져 지금 승인해도 실행되지 않는다. 승인 토큰은 발급되지 않았다.
-          </p>
-          <details><summary className="note">무엇을 쓰려 했는지</summary>
-            <pre>{JSON.stringify(s.pending_approval.summary, null, 2)}</pre></details>
-        </div>
-      )}
-
-      {/* ── 승인 대기 ─────────────────────────────────────── */}
-      {s.pending_approval && s.live && (
-        <div className="panel" style={{ borderColor: 'var(--danger)' }}>
-          <div className="spread">
-            <strong>⚠️ 승인 대기 — {s.pending_approval.tool}</strong>
-            <span className="note">버전 {s.pending_approval.version}</span>
-          </div>
-          <p className="note">
-            승인하면 1회용 토큰을 주입해 실행한다. 모델은 토큰을 받지 않으므로 스스로 실행할 수 없다.
-          </p>
-          <details open>
-            <summary>무엇을 쓰려는지 (승인 전에 확인)</summary>
-            <pre>{JSON.stringify(s.pending_approval.summary, null, 2)}</pre>
-          </details>
-          <div className="row" style={{ marginTop: 12 }}>
-            <button className="primary" disabled={busy}
-              onClick={() => post('approvals', {
-                approval_id: s.pending_approval!.approval_id,
-                version: s.pending_approval!.version, approved: true,
-              })}>승인하고 실행</button>
-            <button className="danger" disabled={busy}
-              onClick={() => post('approvals', {
-                approval_id: s.pending_approval!.approval_id,
-                version: s.pending_approval!.version, approved: false, reason: '화면에서 거절',
-              })}>거절</button>
+            <button onClick={() => setShowLog((v) => !v)}>{showLog ? '--no-log' : '--log'}</button>
           </div>
         </div>
-      )}
 
-      {/* ── 중단 후 재개 ──────────────────────────────────── */}
-      {s.status === 'interrupted' && (
-        <div className="panel" style={{ borderColor: 'var(--warn)' }}>
-          <strong>중단됨</strong>
-          <p className="note">
-            이 서버가 이 실행을 들고 있지 않다. 서버를 재시작했다면 메모리에서 기다리던 콜백이 사라진 것이다.
-            저장된 맥락으로 재개하거나 처음부터 다시 돌린다.
-          </p>
-          <div className="row" style={{ marginTop: 10 }}>
-            <button className="primary" disabled={busy || !s.session_id}
-              onClick={() => post('resume', { mode: 'resume' })}>
-              세션으로 재개{!s.session_id && ' (세션 없음)'}
-            </button>
-            <button disabled={busy} onClick={() => post('resume', { mode: 'retry' })}>처음부터 재시도</button>
+        {/* ─────────────────────────── 프롬프트 헤더 */}
+        <div style={{ padding: '16px 18px 14px', borderBottom: '1px solid var(--line)' }}>
+          <div style={{ fontSize: 12.5, lineHeight: 1.9 }}>
+            <div>
+              <span className="ok">➜</span> <span className="mut">brief</span> run
+              {s.fixture_id && <> --fixture <span className="ink">{s.fixture_id}</span></>}
+              {s.period && <>
+                {' '}--since <span className="ink">{s.period.since}</span>
+                {' '}--until <span className="ink">{s.period.until}</span>
+              </>}
+              {' '}--axis <span className="ok">{s.focus || 'auto'}</span>
+              {' '}--engine <span className="ink">{s.engine ?? 'claude'}</span>
+            </div>
+            <div className="mut">
+              auth: {credLine(s.credential_source)} · engine {s.engine ?? 'claude'}
+              {' · '}{s.fixture_id ? 'fixture 모드 — 외부 API 호출 없음' : 'live 모드'}
+              {!dead && <Cursor />}
+            </div>
+          </div>
+          <div className="row" style={{ marginTop: 13, fontSize: 11, gap: 10 }}>
+            <span className="mut">
+              live <span className={dead ? 'wrn' : 'ok'}>
+                {dead ? 'false — 이 서버가 들고 있지 않음' : 'true — 이 서버가 실행 중'}
+              </span>
+            </span>
           </div>
         </div>
-      )}
 
-      {/* ── 종료 조건 ─────────────────────────────────────── */}
-      {s.stop_reason && (
-        <div className="panel" style={{ borderColor: 'var(--warn)' }}>
-          <strong>종료 조건에 걸려 멈췄다 — {s.stop_reason.limit}</strong>
-          <p className="note">
-            {s.stop_reason.message} (관측 {s.stop_reason.observed} / 허용 {s.stop_reason.allowed})
-          </p>
+        {/* ─────────────────────────── 계기 3분할 */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: narrow ? 'minmax(0,1fr)' : 'repeat(auto-fit,minmax(280px,1fr))',
+          borderBottom: '1px solid var(--line)',
+        }}>
+          {/* PROGRESS */}
+          <div className="pane">
+            <SectionHead label={`[ PROGRESS ] elapsed ${clock(elapsed)}`} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 12 }}>
+              {s.steps.map((st) => {
+                const m = STEP_MARK[st.state];
+                return (
+                  <div key={st.label} style={{ display: 'grid', gridTemplateColumns: '18px minmax(0,1fr)', gap: 8 }}>
+                    <span className={m.cls}>{m.g}</span>
+                    <span className={st.state === 'current' ? 'ink' : 'mut'}>{st.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* AXES */}
+          <div className="pane">
+            <SectionHead label="[ AXES ]" />
+            {s.axes.collected ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 10, fontSize: 12 }}>
+                  {s.axes.tiles.map((t) => (
+                    <div className="tile" key={t.key}>
+                      <div className="mut">{t.key}</div>
+                      <div className="stat">
+                        <span className="v">{t.value === null ? '—' : t.value}</span>{' '}
+                        <span className={t.tone === 'mut' ? 'mut' : t.tone} style={{ fontSize: 11 }}>{t.note}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="note" style={{ marginTop: 11 }}>
+                  unavailable_fields:{' '}
+                  {s.axes.unavailable_fields.length === 0
+                    ? <><span className="ok">[]</span> — 네 축 모두 값을 받았다</>
+                    : <><span className="wrn">[{s.axes.unavailable_fields.join(', ')}]</span> — 조회하지 못했다. 0 이 아니다</>}
+                </div>
+              </>
+            ) : (
+              <div className="note">아직 도구를 부르지 않았다 — 네 축 값이 없다.</div>
+            )}
+          </div>
+
+          {/* BUDGET ↔ USAGE */}
+          <div
+            className="pane"
+            style={{ touchAction: 'pan-y' }}
+            onPointerDown={(e) => { swipeX.current = e.clientX; }}
+            onPointerUp={(e) => {
+              if (swipeX.current !== null && Math.abs(e.clientX - swipeX.current) > 36) {
+                setMeter((p) => (p === 'budget' ? 'usage' : 'budget'));
+              }
+              swipeX.current = null;
+            }}
+          >
+            <SectionHead
+              label={meter === 'budget'
+                ? '[ BUDGET ] limits'
+                : known ? '[ USAGE ] cost_is_estimate: true' : '[ USAGE ] usage_known: false'}
+              right={
+                <span className="row" style={{ gap: 6 }}>
+                  <button className="dot" title="BUDGET" aria-pressed={meter === 'budget'} onClick={() => setMeter('budget')} />
+                  <button className="dot" title="USAGE" aria-pressed={meter === 'usage'} onClick={() => setMeter('usage')} />
+                </span>
+              }
+            />
+            {meter === 'budget' ? (
+              lim ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 11.5 }}>
+                  <Gauge label="cost (est)" value={known && u ? u.total_cost_usd : null}
+                    max={lim.maxBudgetUsd} prefix="$" digits={2} tone="ok" />
+                  <Gauge label="tool calls" value={toolCalls} max={lim.maxToolCalls} />
+                  <Gauge label="fresh input" value={freshInput} max={lim.maxInputTokens} />
+                  <Gauge label="wall clock" value={Math.round(elapsed)} max={lim.maxElapsedSeconds} unit="s" />
+                  <div className="note">
+                    cost 는 SDK 로컬 추정값 · 종료 조건 판정용.
+                    {' '}fresh input 은 캐시 읽기를 뺀 값이다 — 상한이 그 기준이다.
+                    <br />반복 {lim.maxTurns}회 상한은 <span className="ink">SDK 가 검사한다</span> —
+                    이 화면은 실제 턴 수를 관측할 수 없어 게이지로 그리지 않는다.
+                  </div>
+                </div>
+              ) : <div className="note">상한이 기록되지 않았다 — 이 실행은 상한을 남기기 전 버전이다.</div>
+            ) : (
+              known && u ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 10 }}>
+                    <div className="stat"><div className="k">input</div><div className="v">{u.input_tokens.toLocaleString()}</div></div>
+                    <div className="stat"><div className="k">cache read</div><div className="v">{u.cache_read_input_tokens.toLocaleString()}</div></div>
+                    <div className="stat"><div className="k">output</div><div className="v">{u.output_tokens.toLocaleString()}</div></div>
+                    <div className="stat"><div className="k">cost (est)</div><div className="v">${u.total_cost_usd.toFixed(4)}</div></div>
+                  </div>
+                  <div className="note">
+                    cost 는 SDK <span className="ink">클라이언트 측 추정값</span> · 실제 청구액과 다를 수 있다
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                  <div style={{ border: '1px solid var(--warn)', padding: '11px 13px' }}>
+                    <div className="k mut" style={{ fontSize: 11 }}>토큰 · 비용</div>
+                    <div className="wrn" style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.5 }}>확인 못 함</div>
+                  </div>
+                  <div className="note">
+                    {u?.unknown_reason ?? '아직 집계되지 않았다.'}{' '}
+                    토큰은 이미 썼으므로 <span className="ink">0 으로 적지 않는다.</span>
+                    {u && u.cache_read_input_tokens > 0 && <>
+                      <br />아는 값: 캐시 읽기 <span className="ink">{u.cache_read_input_tokens.toLocaleString()}</span> 토큰
+                    </>}
+                  </div>
+                </div>
+              )
+            )}
+            <div className="note" style={{ color: 'var(--faint)', marginTop: 11 }}>
+              ← 옆으로 밀어 {meter === 'budget' ? 'USAGE' : 'BUDGET'} 보기
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* ── 사용량 ────────────────────────────────────────── */}
-      <h2>실행 비용</h2>
-      <div className="panel">
-        {!u ? <p className="note">아직 집계되지 않았다.</p>
-          : !u.usage_known ? (
-            <>
-              <div className="stat" style={{ borderColor: 'var(--warn)' }}>
-                <div className="k">토큰 · 비용</div>
-                <div className="v">확인 못 함</div>
+        {/* ─────────────────────────── 서버가 거절한 요청 */}
+        {conflict && (
+          <div className="strip warn" style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
+            <span className="wrn">✕</span>
+            <div style={{ minWidth: 0 }}>
+              <div><b>요청이 거절됐다</b> — <span className="wrn">{conflict.code}</span> <span className="mut">HTTP 409</span></div>
+              <div className="mut">{conflict.message}</div>
+            </div>
+            <button style={{ marginLeft: 'auto' }} onClick={() => setConflict(null)}>dismiss</button>
+          </div>
+        )}
+
+        {/* ─────────────────────────── 승인 게이트 */}
+        {approvable && s.pending_approval && (
+          <div className="strip bad">
+            <div className="row" style={{ gap: 18, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 280 }}>
+                <div>
+                  <span className="bad">!</span> <b>write tool 승인 대기</b>{' '}
+                  <span className="bad">{s.pending_approval.tool}</span>{' '}
+                  <span className="mut">v{s.pending_approval.version}</span>
+                </div>
+                {summaryLines(s.pending_approval.summary).map(([k, v]) => (
+                  <div className="mut" key={k}>{k} <span className="ink">{v}</span></div>
+                ))}
+                <div className="mut">
+                  승인하면 <span className="ink">1회용 토큰</span>을 주입해 실행한다 — 모델은 토큰을 받지 않는다
+                </div>
               </div>
-              <p className="note">
-                {u.unknown_reason} — 토큰은 이미 썼으므로 <strong>0 으로 적지 않는다.</strong>
-                {u.cache_read_input_tokens > 0
-                  && ` (아는 값: 캐시 읽기 ${u.cache_read_input_tokens.toLocaleString()} 토큰)`}
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="grid">
-                <div className="stat"><div className="k">입력 토큰</div>
-                  <div className="v">{u.input_tokens.toLocaleString()}</div></div>
-                <div className="stat"><div className="k">캐시 읽기</div>
-                  <div className="v">{u.cache_read_input_tokens.toLocaleString()}</div></div>
-                <div className="stat"><div className="k">출력 토큰</div>
-                  <div className="v">{u.output_tokens.toLocaleString()}</div></div>
-                <div className="stat"><div className="k">비용 (추정)</div>
-                  <div className="v">${u.total_cost_usd.toFixed(4)}</div></div>
+              <div className="row" style={{ gap: 8 }}>
+                <button onClick={() => setGate((v) => !v)}>--diff</button>
+                <button className="primary" disabled={busy} onClick={() => void post('approvals', {
+                  approval_id: s.pending_approval!.approval_id,
+                  version: s.pending_approval!.version, approved: true,
+                })}>approve</button>
+                <button className="danger" disabled={busy} onClick={() => void post('approvals', {
+                  approval_id: s.pending_approval!.approval_id,
+                  version: s.pending_approval!.version, approved: false, reason: '화면에서 거절',
+                })}>reject</button>
               </div>
-              <p className="note">
-                비용은 <strong>클라이언트 측 추정값</strong>이다. SDK 가 번들된 단가표로 로컬 계산하며
-                실제 청구액과 다를 수 있다. 참고와 종료 조건 판정에만 쓴다.
-              </p>
-              <p className="note">
-                {s.credential_source === 'api_key'
-                  ? '이 실행은 ANTHROPIC_API_KEY 로 돌았다 — API 사용량 크레딧에서 차감된다.'
-                  : s.credential_source === 'stored_login'
-                    ? '이 실행은 저장된 로그인(구독)으로 돌았다 — 위 금액은 토큰 추정치이며 API 크레딧에서 차감되지 않는다.'
-                    : '이 실행의 자격증명 출처가 기록되지 않았다.'}
-              </p>
-            </>
-          )}
-      </div>
+            </div>
+            {gate && <pre style={{ marginTop: 12 }}>{JSON.stringify(s.pending_approval.summary, null, 2)}</pre>}
+          </div>
+        )}
 
-      {/* ── 결정 이력 ─────────────────────────────────────── */}
-      {(s.decisions.length > 0 || s.answered.length > 0) && (
-        <>
-          <h2>사람이 결정한 것</h2>
-          <div className="panel">
-            {s.answered.map((a) => (
-              <div key={a.question_id} className="spread" style={{ padding: '6px 0' }}>
-                <span>질문 답변</span>
-                <span className="note">{Object.values(a.answers).join(', ')}</span>
+        {/* ─────────────────────────── 질문 게이트 */}
+        {askable && s.pending_question && (
+          <div className="strip warn">
+            <div className="spread" style={{ flexWrap: 'wrap' }}>
+              <div>
+                <span className="wrn">?</span> <b>질문 대기</b>{' '}
+                <span className="mut">ask_user · {s.pending_question.question_id} v{s.pending_question.version}</span>
+              </div>
+              <span className="note">답하기 전에는 다음 단계로 넘어가지 않는다 — 정상 상태다</span>
+            </div>
+            {s.pending_question.questions.map((q) => (
+              <div key={q.question} style={{ marginTop: 12 }}>
+                <div className="prose" style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 10 }}>
+                  {q.question}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(228px,1fr))', gap: 9 }}>
+                  {q.options.map((o, i) => (
+                    <button className="opt" key={o.label} disabled={busy} onClick={() => void post('answers', {
+                      question_id: s.pending_question!.question_id,
+                      version: s.pending_question!.version,
+                      answers: { [q.question]: o.label },
+                    })}>
+                      <span className="l">{i + 1} · {o.label}</span>
+                      {o.description && <span className="d">{o.description}</span>}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
-            {s.decisions.map((d) => (
-              <div key={d.approval_id} className="spread" style={{ padding: '6px 0' }}>
-                <span>{d.tool}</span>
-                <span className={d.approved ? '' : 'note'}
-                  style={{ color: d.approved ? 'var(--ok)' : 'var(--danger)' }}>
-                  {d.approved ? '승인' : `거절 — ${d.reason ?? ''}`}
+            <div className="note" style={{ marginTop: 10 }}>
+              같은 question_id + version 은 한 번만 작업을 시작한다 — 두 번 눌러도 제작이 두 번 돌지 않는다
+            </div>
+          </div>
+        )}
+
+        {/* ─────────────────────────── 중단 — 콜백 소실 */}
+        {s.status === 'interrupted' && (
+          <div style={{ borderBottom: '1px solid var(--line)' }}>
+            <div className="strip warn">
+              <div className="row" style={{ gap: 18, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, minWidth: 280 }}>
+                  <div><span className="wrn">■</span> <b>중단됨</b> <span className="mut">이 서버가 이 실행을 들고 있지 않다</span></div>
+                  <div className="mut">
+                    서버를 재시작해 메모리에서 기다리던 <span className="ink">canUseTool</span> 콜백이 사라졌다.
+                    상태만 고쳐도 작업은 이어지지 않는다.
+                  </div>
+                  <div className="mut">session_id <span className="ink">{s.session_id ?? '없음'}</span></div>
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  <button className="primary" disabled={busy || !s.session_id}
+                    title={s.session_id ? '' : '이어갈 세션 ID 가 없다'}
+                    onClick={() => void post('resume', { mode: 'resume' })}>--resume</button>
+                  <button disabled={busy} style={{ fontSize: 12.5, fontWeight: 600, padding: '8px 14px' }}
+                    onClick={() => void post('resume', { mode: 'retry' })}>--retry</button>
+                </div>
+              </div>
+            </div>
+            {(s.pending_question || s.pending_approval) && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: narrow ? 'minmax(0,1fr)' : 'repeat(auto-fit,minmax(300px,1fr))',
+                borderBottom: '1px solid var(--line-in)',
+              }}>
+                {s.pending_question && (
+                  <div className="pane">
+                    <SectionHead label="[ STALE QUESTION ] 무효" tone="mut" />
+                    <div className="note">
+                      이 질문을 기다리던 콜백이 사라졌다. 지금 답해도 작업은 이어지지 않는다 — 재개하면 에이전트가 다시 묻는다.
+                    </div>
+                    <pre style={{ marginTop: 9, color: 'var(--faint)' }}>
+                      {s.pending_question.question_id} v{s.pending_question.version}
+                      {'\n'}{s.pending_question.questions.map((q) => q.question).join('\n')}
+                    </pre>
+                  </div>
+                )}
+                {s.pending_approval && (
+                  <div className="pane">
+                    <SectionHead label="[ STALE APPROVAL ] 무효" tone="mut" />
+                    <div className="note">
+                      {s.pending_approval.tool} — 승인 토큰은 <span className="ink">발급되지 않았다</span>. 지금 승인해도 실행되지 않는다.
+                    </div>
+                    <div style={{ marginTop: 9, fontSize: 11.5, lineHeight: 1.8 }}>
+                      <div className="fnt">무엇을 쓰려 했는지</div>
+                      {summaryLines(s.pending_approval.summary).map(([k, v]) => (
+                        <div className="mut" key={k}>{k} <span style={{ color: 'var(--faint)' }}>{v}</span></div>
+                      ))}
+                      <details style={{ marginTop: 7 }}>
+                        <summary className="fnt">원문 펼쳐 보기</summary>
+                        <pre style={{ marginTop: 6, color: 'var(--faint)' }}>
+                          {JSON.stringify(s.pending_approval.summary, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─────────────────────────── 종료 조건 */}
+        {s.stop_reason && (
+          <div className="strip warn">
+            <div>
+              <span className="wrn">■</span> <b>종료 조건에 걸려 멈췄다</b>{' '}
+              <span className="wrn">{s.stop_reason.limit}</span>
+            </div>
+            <div className="mut">
+              {s.stop_reason.message} — 관측 <span className="ink">{s.stop_reason.observed}</span>
+              {' '}/ 허용 <span className="ink">{s.stop_reason.allowed}</span>. 지금까지의 결과는 아래에 보존된다.
+            </div>
+            <div className="mut">
+              모델의 「다 했다」 한 마디를 <span className="ink">done</span> 으로 처리하지 않는다 —
+              이 실행의 상태는 <span className="wrn">stopped</span> 다.
+            </div>
+          </div>
+        )}
+
+        {/* ─────────────────────────── 사람이 결정한 것 */}
+        <div style={{ borderBottom: '1px solid var(--line)' }}>
+          <div style={{ padding: '14px 18px' }}>
+            <SectionHead label={`[ DECIDED BY HUMAN ] ${s.answered.length + s.decisions.length}`} />
+            {s.answered.length + s.decisions.length === 0 ? (
+              <div className="note">
+                아직 없다 — 답과 승인이 여기 쌓인다. 같은 질문을 다시 묻지 않기 위한 기록이다.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
+                {s.answered.map((a) => (
+                  <div className="spread" key={a.question_id}
+                    style={{ padding: '7px 0', borderBottom: '1px solid var(--line-faint)' }}>
+                    <span className="mut">질문 답변 <span className="fnt">{a.question_id}</span></span>
+                    <span className="ok">{Object.values(a.answers).join(' · ')}</span>
+                  </div>
+                ))}
+                {s.decisions.map((d) => (
+                  <div className="spread" key={d.approval_id}
+                    style={{ padding: '7px 0', borderBottom: '1px solid var(--line-faint)' }}>
+                    <span className="mut">{d.tool} <span className="fnt">{d.approval_id}</span></span>
+                    <span className={d.approved ? 'ok' : 'bad'}>
+                      {d.approved ? '승인 — 토큰 주입해 실행' : `거절 — ${d.reason ?? '사람이 승인하지 않았다'}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="note" style={{ marginTop: 10 }}>
+              되돌리기(revert_issue)의 대상 범위는 이 기록이 정한다 · 같은 승인을 두 번 제출해도 이슈는 한 번만 만들어진다
+            </div>
+          </div>
+        </div>
+
+        {/* ─────────────────────────── 본문 2단 */}
+        <div style={{ display: 'grid', gridTemplateColumns: bottomCols }}>
+          <div style={{ padding: 18, minWidth: 0 }}>
+            {view === 'card' ? (
+              <CardsPane cards={s.cards} charts={s.charts} runId={s.run_id} />
+            ) : (
+              <div style={{ border: '1px solid var(--line)', background: 'var(--raised)' }}>
+                <div className="spread" style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', fontSize: 11.5 }}>
+                  <span className="ok">cat draft.md</span>
+                  <button disabled={!s.final_text} onClick={() => {
+                    void navigator.clipboard?.writeText(s.final_text ?? '');
+                    setCopied(true); setTimeout(() => setCopied(false), 1500);
+                  }}>{copied ? 'copied' : 'copy'}</button>
+                </div>
+                <pre style={{ border: 'none', padding: 16, background: 'transparent', color: 'var(--prose)', fontSize: 12.5 }}>
+                  {s.final_text ?? '아직 원고가 없다. 실행이 끝나면 여기에 전문이 남는다.'}
+                </pre>
+              </div>
+            )}
+          </div>
+
+          {showLog && (
+            <div className="log">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, marginBottom: 12 }}>
+                <span className="sechead">[ TAIL -F ] {s.trace.length}</span>
+                <span className={dead ? 'mut' : 'ok'}>
+                  {dead ? '○ poll 정지 — 끝난 실행은 더 두드리지 않는다' : `● poll ${POLL_MS / 1000}s`}
                 </span>
               </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ── 차트 ──────────────────────────────────────────── */}
-      {s.charts.length > 0 && (
-        <>
-          <h2>생성된 카드 차트 ({s.charts.length}장)</h2>
-          <div className="panel">
-            {s.charts.map((c) => (
-              <figure key={c.card_no} style={{ margin: '0 0 16px' }}>
-                <img className="chart" alt={`카드 ${c.card_no} 차트`}
-                  src={`/api/runs/${s.run_id}/${c.svg_path}`} />
-                <figcaption className="note">
-                  카드 {c.card_no} — 근거 대조를 통과한 값만 그려진다
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ── 최종 원고 ─────────────────────────────────────── */}
-      {s.final_text && (
-        <>
-          <h2>브리핑 원고</h2>
-          <div className="panel"><pre>{s.final_text}</pre></div>
-        </>
-      )}
-
-      {/* ── 실행 로그 ─────────────────────────────────────── */}
-      <h2>실행 로그 ({s.trace.length}건)</h2>
-      <div className="panel">
-        <ul className="trace">
-          {s.trace.map((e) => (
-            <li key={e.seq}>
-              <div className="spread">
-                <span className={e.isError ? 'err' : ''}>{e.label}</span>
-                <span className="when">{e.at.slice(11, 19)}</span>
+              <div className="row" style={{ gap: 5, marginBottom: 12 }}>
+                {(['all', 'tool', 'think', 'err'] as const).map((f) => (
+                  <button className="chip" key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}
+                    style={f === 'err' && counts.err > 0
+                      ? { borderColor: 'rgba(226,96,75,.45)', color: 'var(--danger-ink)' } : undefined}>
+                    {f}{f === 'all' ? '' : ` ${counts[f]}`}
+                  </button>
+                ))}
               </div>
-              {e.detail && (
-                <details>
-                  <summary className="note">펼쳐 보기</summary>
-                  <pre>{e.detail}</pre>
-                </details>
-              )}
-            </li>
-          ))}
-        </ul>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {shown.map((e) => {
+                  const g = glyph(e);
+                  return (
+                    <div className="line" key={e.seq}>
+                      <span className="when">{e.at.slice(11, 19)}</span>
+                      <span className={g.cls}>{g.mark}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <span className={e.isError ? 'bad' : 'ink'}>{e.label}</span>
+                        {e.detail && (
+                          <details>
+                            <summary className="sub" style={{ fontSize: 11 }}>펼쳐 보기</summary>
+                            <pre style={{ marginTop: 6 }}>{e.detail}</pre>
+                          </details>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {shown.length === 0 && <div className="note">이 갈래에 해당하는 기록이 없다.</div>}
+                <div style={{ padding: '9px 0 0' }} className="ok">➜{!dead && <Cursor />}</div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
+}
+
+/** 카드가 있으면 카드를, 없으면 차트만이라도 보여준다. 둘 다 없으면 왜 없는지 적는다. */
+function CardsPane({ cards, charts, runId }: {
+  cards: CardView[]; charts: { card_no: number; svg_path: string }[]; runId: string;
+}) {
+  const chartOf = (p?: string) => charts.find((c) => c.svg_path === p);
+
+  if (cards.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <SectionHead label={`[ CARDS ] ${charts.length}`} tone="mut"
+          right={<span className="note">근거 없는 수치는 카드에 오르지 않는다</span>} />
+        {charts.length === 0 ? (
+          <div className="hatch" style={{ padding: '26px 20px', textAlign: 'center' }}>
+            <div className="note" style={{ fontSize: 12.5, lineHeight: 1.9 }}>
+              storyboard · render_chart · compose_card 가 아직 돌지 않았다<br />
+              <span className="ink">근거 대조를 통과한 값만 카드에 오른다</span>
+            </div>
+          </div>
+        ) : charts.map((c) => (
+          <figure key={c.card_no} style={{ margin: 0 }}>
+            <div className="frame">
+              <img className="chart" src={`/api/runs/${runId}/${c.svg_path}`} alt={`카드 ${c.card_no} 차트`} />
+            </div>
+            <figcaption className="note" style={{ marginTop: 6 }}>
+              card {String(c.card_no).padStart(2, '0')} · render_chart · 근거 대조 통과
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <SectionHead label={`[ CARDS ] ${cards.length}`}
+        right={<span className="note">근거 없는 수치는 카드에 오르지 않는다</span>} />
+      {cards.map((c) => {
+        const sev = SEVERITY[c.severity];
+        const chart = chartOf(c.chart_path);
+        return (
+          <div className="card" key={c.card_no} style={{ borderLeftColor: sev.line }}>
+            <div className="row" style={{ gap: 9, marginBottom: 9, fontSize: 11 }}>
+              <span className="cardkind" style={{ background: sev.bg, color: sev.ink }}>{c.severity}</span>
+              <span className="mut">card {String(c.card_no).padStart(2, '0')}</span>
+            </div>
+            <h3>{c.title}</h3>
+            {c.body.length > 0 && (
+              <div className="body">{c.body.map((line, i) => <div key={i}>{line}</div>)}</div>
+            )}
+            {chart && (
+              <div className="frame" style={{ marginTop: 11 }}>
+                <img className="chart" src={`/api/runs/${runId}/${chart.svg_path}`} alt={`카드 ${c.card_no} 차트`} />
+              </div>
+            )}
+            {c.sources.length > 0 && (
+              <div className="src">근거 {c.sources.map((x, i) => (
+                <span key={i}>{i > 0 && ' · '}<span className="ok">{x}</span></span>
+              ))}</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function credLine(src?: 'api_key' | 'auth_token' | 'stored_login'): string {
+  switch (src) {
+    case 'api_key': return 'ANTHROPIC_API_KEY (API 크레딧에서 빠진다)';
+    case 'auth_token': return 'ANTHROPIC_AUTH_TOKEN';
+    case 'stored_login': return '저장된 로그인(구독)';
+    default: return '기록되지 않음';
+  }
+}
+
+/** 승인 요약에서 사람이 먼저 봐야 하는 줄만 뽑는다. 전문은 --diff 로 본다. */
+function summaryLines(summary: Record<string, unknown>): [string, string][] {
+  const pick = ['repo', 'title', 'labels', 'issue_number', 'reason'];
+  const out: [string, string][] = [];
+  for (const k of pick) {
+    const v = summary[k];
+    if (v === undefined || v === null) continue;
+    out.push([k, Array.isArray(v) ? `[${v.join(', ')}]` : String(v)]);
+  }
+  const src = summary.source as { tool?: unknown; field?: unknown } | undefined;
+  if (src?.tool) out.push(['근거', `${String(src.tool)}${src.field ? ` → ${String(src.field)}` : ''}`]);
+  return out;
 }

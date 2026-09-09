@@ -71,4 +71,78 @@ export type RunState = {
   live: boolean;
   /** 어느 자격증명으로 돌았는가. 비용이 어느 지갑에서 빠지는지가 달라진다. */
   credential_source?: 'api_key' | 'auth_token' | 'stored_login';
+  /**
+   * 이 실행에 걸린 상한. 화면의 예산 게이지가 쓰는 **분모**다.
+   * 전에는 '실행 시작' 트레이스의 문자열 안에만 있어서 값으로 꺼낼 수 없었다.
+   */
+  limits?: RunLimits;
+  /** 깊게 볼 축. 비우면 에이전트가 판단한다. */
+  focus?: string;
+  /** 브리핑 기간. 프롬프트 줄에 --since/--until 로 보인다. */
+  period?: { since: string; until: string };
+};
+
+export type RunLimits = {
+  maxTurns: number;
+  maxToolCalls: number;
+  maxBudgetUsd: number;
+  maxElapsedSeconds: number;
+  maxInputTokens: number;
+  maxSameToolStreak: number;
+};
+
+/** 네 축 요약. toolcalls.jsonl 에서 유도한다 — 새로 조회하지 않는다. */
+export type AxisTile = {
+  key: 'system' | 'users' | 'dev' | 'trend';
+  /** 큰 숫자. 조회하지 못했으면 null 이다 — 0 이 아니다. */
+  value: number | null;
+  /** 숫자 옆에 붙는 짧은 설명. */
+  note: string;
+  tone: 'ok' | 'warn' | 'bad' | 'mut';
+};
+
+export type AxesView = {
+  tiles: AxisTile[];
+  /** 도구들이 알린 결측 필드의 합집합. */
+  unavailable_fields: string[];
+  /** 도구를 하나도 안 불렀으면 false — 화면이 «아직 없다»로 그린다. */
+  collected: boolean;
+};
+
+/** compose_card 가 남긴 카드. runs/{id}/cards/NN.json 을 그대로 읽는다. */
+export type CardView = {
+  card_no: number;
+  kind: 'cover' | 'metric' | 'text';
+  title: string;
+  body: string[];
+  sources: string[];
+  chart_path?: string;
+  /** 심각도 딱지. accent·chart_path 로 정한다 — 새 분류 규칙을 만들지 않는다. */
+  severity: 'FIX_NOW' | 'WATCH' | 'METRICS' | 'FYI' | 'COVER';
+};
+
+/** [ PROGRESS ] 6단계. 트레이스에서 유도한다. */
+export type Step = {
+  label: string;
+  state: 'done' | 'current' | 'pending';
+};
+
+/** 화면이 받는 실행 상세 — 저장된 상태 + 디스크에서 유도한 값. */
+export type RunDetail = RunState & {
+  axes: AxesView;
+  cards: CardView[];
+  steps: Step[];
+};
+
+/** 홈 목록의 한 줄. */
+export type RunRow = {
+  run_id: string;
+  status: RunStatus;
+  created_at: string;
+  fixture_id: string | null;
+  engine: 'claude' | 'opencode';
+  /** 모르면 null 이다. 0 으로 적으면 «비용이 안 들었다»는 거짓 보고가 된다. */
+  cost: number | null;
+  /** 한 줄 결과 요약. */
+  result: string;
 };

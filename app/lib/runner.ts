@@ -118,7 +118,9 @@ export function start(opts: StartOptions): void {
             detail: `상한: 반복 ${e.limits.maxTurns} · 도구 ${e.limits.maxToolCalls}`
               + ` · 비용 $${e.limits.maxBudgetUsd} · 시간 ${e.limits.maxElapsedSeconds}s`
               + ` · 같은도구연속 ${e.limits.maxSameToolStreak}` });
-          store.update(runId, (s) => { s.status = 'running'; });
+          // 상한을 **값으로도** 남긴다. 화면의 예산 게이지가 분모로 쓴다.
+          // 위 문자열은 사람이 읽는 용도라 값으로 되꺼낼 수 없다.
+          store.update(runId, (s) => { s.status = 'running'; s.limits = e.limits; });
           break;
         case 'assistant_text':
           if (e.text.trim()) {
