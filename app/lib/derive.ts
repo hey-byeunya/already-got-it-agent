@@ -90,14 +90,16 @@ export function readAxes(runId: string): AxesView {
     {
       key: 'system',
       value: num(sysSum.total),
-      note: `deploy${sysErr !== null && sysErr > 0 ? ` · err ${sysErr}` : sysErr === 0 ? ' · err 0' : ''}`,
+      // 배포 중(빌드) 에러 수다. 앱 에러 로그(apperr)와 다른 값이라 이름을 구분한다.
+      note: `deploy${sysErr !== null && sysErr > 0 ? ` · builderr ${sysErr}` : sysErr === 0 ? ' · builderr 0' : ''}`,
       tone: sysErr !== null && sysErr > 0 ? 'bad' : sys ? 'ok' : 'mut',
     },
     {
       key: 'users',
       value: active,
       note: `active${activeDelta.text}${appErr !== null ? ` · apperr ${appErr}` : ''}`,
-      tone: activeDelta.tone,
+      // 에러가 있으면 배포 수와 같은 강조색으로 눈에 띄게 한다.
+      tone: appErr !== null && appErr > 0 ? 'ok' : activeDelta.tone,
     },
     {
       key: 'dev',
