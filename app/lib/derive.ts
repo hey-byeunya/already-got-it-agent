@@ -81,6 +81,10 @@ export function readAxes(runId: string): AxesView {
 
   const active = num(totals.active_users);
   const activeDelta = delta(active, num(prev.active_users));
+  // 앱 에러 로그 수 (already-got-it 의 error_logs 행 수).
+  // system 타일의 err(실패한 Vercel 배포 수)와 다른 값이라 이름을 구분한다.
+  // null 이면(테이블 없음 등) 붙이지 않는다 — 0 으로 채우지 않는다.
+  const appErr = num(totals.errors_total);
 
   const tiles: AxisTile[] = [
     {
@@ -92,7 +96,7 @@ export function readAxes(runId: string): AxesView {
     {
       key: 'users',
       value: active,
-      note: `active${activeDelta.text}`,
+      note: `active${activeDelta.text}${appErr !== null ? ` · apperr ${appErr}` : ''}`,
       tone: activeDelta.tone,
     },
     {
