@@ -45,6 +45,24 @@ export const COVER_TITLE = '이번 주 「이미 있어」, 운영 브리핑';
 /** 표지 제목 자동 축소의 하한. 이 이하로는 줄이지 않고 이 크기에서 한 줄로 둔다. */
 const COVER_TITLE_MIN_FONT = 40;
 
+/**
+ * 제목 정규화. 모델이 제목을 JSON 배열 문자열로 넘기는 경우가 있다 —
+ * `["이번 주 핵심 요약", "시스템 · 사용자 · 개발"]` 같은 입력이 카드에
+ * 대괄호·따옴표째 그려지는 것을 막는다. 파싱에 실패하면 원문을 그대로 둔다.
+ */
+export function normalizeTitle(title: string): string {
+  const t = title.trim();
+  if (!/^\[.*\]$/.test(t)) return title;
+  try {
+    const arr: unknown = JSON.parse(t);
+    if (!Array.isArray(arr) || !arr.length) return title;
+    const joined = arr.map((x) => String(x).trim()).filter((x) => x !== '').join(', ');
+    return joined !== '' ? joined : title;
+  } catch {
+    return title;
+  }
+}
+
 export type CardSpec = {
   card_no: number;
   kind: CardKind;

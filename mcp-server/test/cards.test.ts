@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { withTempRunsAsync } from './helpers.js';
 import { join } from 'node:path';
 import {
-  CARD_H, CARD_W, COVER_TITLE, composeCard, rasterize, readCardSpecs, sourcesMarkdown, textWidth, wrap, writeZip, type CardSpec,
+  CARD_H, CARD_W, COVER_TITLE, composeCard, normalizeTitle, rasterize, readCardSpecs, sourcesMarkdown, textWidth, wrap, writeZip, type CardSpec,
 } from '../src/cards.js';
 
 const spec = (over: Partial<CardSpec> = {}): CardSpec => ({
@@ -43,6 +43,20 @@ test('글자 폭과 줄바꿈', async (t) => {
 
   t.test('줄바꿈 문자를 그대로 지킨다 — 본문 줄 구분이 뭉개지지 않는다', () => {
     assert.deepEqual(wrap('첫줄\n둘째줄', 900, 30), ['첫줄', '둘째줄']);
+  });
+
+  t.test('배열 문자열 제목은 기호를 벗겨 한 줄로 푼다', () => {
+    // 관측한 문제: 모델이 title 에 ["a", "b"] 를 넘겨 카드에 대괄호·따옴표째 그려졌다.
+    assert.equal(
+      normalizeTitle('["이번 주 핵심 요약", "시스템 · 사용자 · 개발"]'),
+      '이번 주 핵심 요약, 시스템 · 사용자 · 개발',
+    );
+  });
+
+  t.test('배열이 아니면 원문을 그대로 둔다 — 파싱 실패가 제목을 바꾸지 않는다', () => {
+    assert.equal(normalizeTitle('배포 9건 전부 성공'), '배포 9건 전부 성공');
+    assert.equal(normalizeTitle("['a', 'b']"), "['a', 'b']");
+    assert.equal(normalizeTitle('[]'), '[]');
   });
 });
 
