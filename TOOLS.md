@@ -69,7 +69,9 @@
   "deployments": [
     { "id": "dpl_...", "created_at": "2026-09-05T14:20:00+09:00",
       "state": "ERROR", "target": "production", "commit_sha": "a1b2c3d",
-      "build_error": "Type error in app/page.tsx" }
+      "build_error": "Type error in app/page.tsx",
+      "url": "https://already-got-....vercel.app",
+      "commit_url": "https://github.com/hey-byeunya/already-got-it/commit/a1b2c3d..." }
   ],
   "summary": { "total": 7, "ready": 6, "error": 1 },
   "function_errors": { "count": 12, "window": "7d", "available": true },
@@ -86,6 +88,8 @@
 - **빈 결과**: 기간 내 배포가 없는 것은 오류가 아니다. "배포 없음"도 브리핑할 가치가 있는 사실이다.
 - 날짜만 온 `until`("2026-09-10")은 **그 날 끝까지 포함**한다. 그대로 자정으로 읽으면
   당일 배포가 통째로 빠져 "배포 0건"이 된다.
+- 배포마다 찾아갈 링크(`url`·`commit_url`)가 있다. 빌드 에러를 이슈·카드에 적을 때 함께 쓴다.
+  모르면 `null`이다.
 
 ## 2. `get_user_metrics`
 
@@ -105,7 +109,8 @@
               "errors_total": 6 },
   "previous_period_totals": { "signups": 21, "owned_created": 310, "wish_created": 95,
                               "active_users": 55, "errors_total": 1 },
-  "errors_by_route": [ { "route": "/items/[id]", "count": 4 } ],
+  "errors_by_route": [ { "route": "/items/[id]", "count": 4,
+                         "url": "https://already-got-it.vercel.app/items/[id]" } ],
   "unavailable_fields": [] }
 ```
 
@@ -113,6 +118,7 @@
 - 개인정보는 반환하지 않는다. 이메일·사용자 ID·물건 이름이 출력에 없다.
   에러 로그도 마찬가지다 — `message`·`user_id`는 절대 내보내지 않고 route 이름과 건수만 본다.
 - `errors_by_route`는 그 기간 에러가 많은 route 상위 5개다. `지금 손봐야 할 것` 카드의 근거가 된다.
+  페이지 route 에는 찾아갈 `url`이 붙는다. `action:` 접두 Server Action 에는 페이지가 없어 `null`이다.
 - `error_logs` 테이블이 없는 DB에서는 에러 지표가 `null`이고 `unavailable_fields`에
   `"error_logs"`가 들어간다. 0으로 채우지 않는다 — 모르는 것과 0은 다르다.
 - **실패 규칙**: RPC 실패 → 1회 재시도 후 이 축을 `확인 못 함`으로. 인증 실패 → 즉시 중단.
