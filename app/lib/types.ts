@@ -113,6 +113,8 @@ export type AxisTile = {
   value: number | null;
   /** 숫자 옆에 붙는 짧은 설명. */
   note: string;
+  /** note 뒤에 `· xxx` 로 붙는 에러 구간. 0 초과면 bad, 0이면 흐리게 그린다. 없으면 붙이지 않는다. */
+  alert?: { text: string; tone: 'bad' | 'mut' };
   tone: 'ok' | 'warn' | 'bad' | 'mut';
 };
 

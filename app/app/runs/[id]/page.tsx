@@ -271,6 +271,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                       <div className="stat">
                         <span className="v">{t.value === null ? '—' : t.value}</span>{' '}
                         <span className={t.tone === 'mut' ? 'mut' : t.tone} style={{ fontSize: 11 }}>{t.note}</span>
+                        {t.alert ? <span className={t.alert.tone} style={{ fontSize: 11 }}> · {t.alert.text}</span> : null}
                       </div>
                     </div>
                   ))}

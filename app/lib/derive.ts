@@ -86,20 +86,26 @@ export function readAxes(runId: string): AxesView {
   // null 이면(테이블 없음 등) 붙이지 않는다 — 0 으로 채우지 않는다.
   const appErr = num(totals.errors_total);
 
+  // 에러 구간은 note 와 분리한다. 0 초과일 때만 bad 색으로 그리고,
+  // 0이면 이전처럼 흐리게 둔다. null(결측)이면 붙이지 않는다.
+  const alertOf = (label: string, n: number | null): AxisTile['alert'] | {} =>
+    n === null ? {} : { alert: { text: `${label} ${n}`, tone: n > 0 ? 'bad' : 'mut' as const } };
+
   const tiles: AxisTile[] = [
     {
       key: 'system',
       value: num(sysSum.total),
       // 배포 중(빌드) 에러 수다. 앱 에러 로그(apperr)와 다른 값이라 이름을 구분한다.
-      note: `deploy${sysErr !== null && sysErr > 0 ? ` · builderr ${sysErr}` : sysErr === 0 ? ' · builderr 0' : ''}`,
-      tone: sysErr !== null && sysErr > 0 ? 'bad' : sys ? 'ok' : 'mut',
+      note: 'deploy',
+      ...alertOf('builderr', sysErr),
+      tone: sys ? 'ok' : 'mut',
     },
     {
       key: 'users',
       value: active,
-      note: `active${activeDelta.text}${appErr !== null ? ` · apperr ${appErr}` : ''}`,
-      // 에러가 있으면 배포 수와 같은 강조색으로 눈에 띄게 한다.
-      tone: appErr !== null && appErr > 0 ? 'ok' : activeDelta.tone,
+      note: `active${activeDelta.text}`,
+      ...alertOf('apperr', appErr),
+      tone: activeDelta.tone,
     },
     {
       key: 'dev',
