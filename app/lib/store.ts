@@ -76,6 +76,7 @@ export function listRuns(): RunRow[] {
       // 사용량을 못 받은 실행은 **모르는 것**이다. 0 으로 적으면 «비용이 안 들었다»가 된다.
       cost: s.usage && s.usage.usage_known ? s.usage.total_cost_usd : null,
       result: resultLine(s, readCards(s.run_id).length),
+      ...(s.focus ? { focus: s.focus } : {}),
       ...(s.period ? { period: s.period } : {}),
     });
   }

@@ -212,7 +212,7 @@ export default function Home() {
   const pageRuns = runs.slice(safePage * RUNS_PAGE, safePage * RUNS_PAGE + RUNS_PAGE);
 
   // 삭제는 제 열을 갖는다 — 비용 아래에 얹으면 어느 쪽 숫자인지 헷갈린다.
-  const rowCols = narrow ? 'minmax(0,1fr) auto' : '190px 168px minmax(0,1fr) 88px 62px';
+  const rowCols = narrow ? 'minmax(0,1fr) auto' : '250px 160px minmax(0,260px) 88px 62px';
   const lim = data?.limits;
   const live = data?.mode === 'live';
 
@@ -284,10 +284,12 @@ export default function Home() {
                   padding: '11px 0', borderBottom: '1px solid var(--line-faint)', fontSize: 12,
                 }}>
                   <span style={{ minWidth: 0 }}>
-                    <Link href={`/runs/${r.run_id}`}>{r.run_id}</Link>
+                    <Link href={`/runs/${r.run_id}`}>
+                      {r.focus ? r.focus : '--axis auto'}
+                    </Link>
                     <br />
                     <span className="mut" style={{ fontSize: 11 }}>
-                      {r.engine}{r.fixture_id ? ` · ${r.fixture_id}` : ' · live'}
+                      {r.engine}{r.fixture_id ? ` · ${r.fixture_id}` : ' · live'} · {r.run_id}
                     </span>
                     <br />
                     <span className="fnt" style={{ fontSize: 10.5 }}>

@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { withTempRunsAsync } from './helpers.js';
 import { join } from 'node:path';
 import {
-  CARD_H, CARD_W, composeCard, rasterize, readCardSpecs, sourcesMarkdown, textWidth, wrap, writeZip, type CardSpec,
+  CARD_H, CARD_W, COVER_TITLE, composeCard, rasterize, readCardSpecs, sourcesMarkdown, textWidth, wrap, writeZip, type CardSpec,
 } from '../src/cards.js';
 
 const spec = (over: Partial<CardSpec> = {}): CardSpec => ({
@@ -126,7 +126,16 @@ test('카드 합성', async (t) => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  // 관측한 문제: 표지 삽화의 마지막 줄이 카드 밖으로 나가 출처 글자를 덮었다.
+  // 관측한 문제: 모델이 표지 제목에 날짜·기호를 덧붙이고 여러 줄로 나눴다.
+  t.test('표지 제목은 고정문 한 줄로 그린다 — 입력이 달라도 같다', () => {
+    const a = composeCard(spec({ kind: 'cover', title: '아무거나 · 2026-09-10 ~ 「인용」' }));
+    const b = composeCard(spec({ kind: 'cover', title: '표지' }));
+    assert.deepEqual(a.layers.title, [COVER_TITLE]);
+    assert.deepEqual(b.layers.title, [COVER_TITLE]);
+    assert.equal(COVER_TITLE, '이번 주 「이미 있어」, 운영 브리핑');
+    // data-lines=1 — 줄 분리 없음.
+    assert.match(a.svg, /<g id="layer-title" data-lines="1">/);
+  });
   t.test('표지 삽화가 출처 띠를 덮지 않는다', () => {
     const c = composeCard(spec({ kind: 'cover', title: '표지', body: ['부제'] }));
     assert.match(c.svg, /clipPath id="cover-clip"/, '삽화에 클리핑이 걸려 있지 않다');

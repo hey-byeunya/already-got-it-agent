@@ -14,7 +14,7 @@ import { openRun, runPath } from './runlog.js';
 import { consume, appendLog, createdIssueNumbers, createdIssueRepo, isAlreadyReverted } from './approvals.js';
 import { renderBarChart, verifySource, verifySourceRow, writeSvg, type ChartPoint } from './chart.js';
 import {
-  MAX_CARDS, MIN_CARDS, composeCard, exportCardnews, type CardSpec,
+  COVER_TITLE, MAX_CARDS, MIN_CARDS, composeCard, exportCardnews, type CardSpec,
 } from './cards.js';
 import { systemHealth } from './live/vercel.js';
 import { userMetrics } from './live/supabase.js';
@@ -247,7 +247,9 @@ export function registerAllTools(server: McpServer): void {
         ? null
         : sources.map((row) => verifySourceRow(run_id, row));
 
-      const spec: CardSpec = { card_no, kind, title, body, sources, chart_path, accent };
+      // 표지 제목은 고정문으로 정규화한다. 모델이 뭘 넘기든 기록·근거표에 같은 값이 남는다.
+      const effectiveTitle = kind === 'cover' ? COVER_TITLE : title;
+      const spec: CardSpec = { card_no, kind, title: effectiveTitle, body, sources, chart_path, accent };
       const composed = composeCard(spec, absChart);
 
       const rel = `cards/${String(card_no).padStart(2, '0')}`;

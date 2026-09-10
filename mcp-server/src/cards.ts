@@ -37,6 +37,14 @@ const THEME = {
 
 export type CardKind = 'cover' | 'metric' | 'text';
 
+/**
+ * 표지 제목 고정문. 모델이 뭘 넘기든 이 한 줄로 그린다 —
+ * 줄 분리 없음, 덧붙는 기호 없음. 날짜·기간은 본문에 적는다.
+ */
+export const COVER_TITLE = '이번 주 「이미 있어」, 운영 브리핑';
+/** 표지 제목 자동 축소의 하한. 이 이하로는 줄이지 않고 이 크기에서 한 줄로 둔다. */
+const COVER_TITLE_MIN_FONT = 40;
+
 export type CardSpec = {
   card_no: number;
   kind: CardKind;
@@ -284,7 +292,16 @@ export function composeCard(spec: CardSpec, absChartPath?: string): ComposedCard
   const inner = CARD_W - PAD * 2;
   const accent = THEME[spec.accent ?? 'accent'];
 
-  const titleLines = wrap(spec.title, inner, b.title.fontSize);
+  const titleLines = spec.kind === 'cover'
+    ? [COVER_TITLE]
+    : wrap(spec.title, inner, b.title.fontSize);
+  // 표지는 글자 크기를 줄여서라도 한 줄에 넣는다. 줄을 나누면 고정문이 깨진다.
+  let titleFontSize = b.title.fontSize;
+  if (spec.kind === 'cover') {
+    while (titleFontSize > COVER_TITLE_MIN_FONT && textWidth(COVER_TITLE, titleFontSize) > inner) {
+      titleFontSize -= 2;
+    }
+  }
   const bodyLines = wrap(spec.body.join('\n'), inner, b.body.fontSize);
   const sourceLines = wrap(spec.sources.join('\n'), inner, b.source.fontSize);
 
@@ -341,7 +358,7 @@ export function composeCard(spec: CardSpec, absChartPath?: string): ComposedCard
     + coverMarkup
     + `</g>`);
 
-  let y = spec.kind === 'cover' ? 300 : PAD + b.title.fontSize + 60;
+  let y = spec.kind === 'cover' ? 300 : PAD + titleFontSize + 60;
 
   // 카드 번호는 배경 레이어에 붙는 장식이 아니라 별도로 둔다 — 순서 점검에 쓴다.
   parts.push(`<g id="layer-index">`
@@ -353,7 +370,7 @@ export function composeCard(spec: CardSpec, absChartPath?: string): ComposedCard
   const titleY = y;
   parts.push(`<g id="layer-title" data-lines="${titleLines.length}">`
     + titleLines.map((l, i) => `<text x="${PAD}" y="${titleY + i * b.title.lineHeight}"`
-      + ` font-family="${FONT}" font-size="${b.title.fontSize}" font-weight="700"`
+      + ` font-family="${FONT}" font-size="${titleFontSize}" font-weight="700"`
       + ` fill="${THEME.ink}">${esc(l)}</text>`).join('')
     + `</g>`);
   y = titleY + titleLines.length * b.title.lineHeight + 28;
@@ -390,7 +407,7 @@ export function composeCard(spec: CardSpec, absChartPath?: string): ComposedCard
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_W} ${CARD_H}"`
     + ` width="${CARD_W}" height="${CARD_H}" role="img">`
-    + `<title>${esc(spec.title)}</title>${parts.join('')}</svg>`;
+    + `<title>${esc(titleLines.join(' / '))}</title>${parts.join('')}</svg>`;
 
   return {
     svg,

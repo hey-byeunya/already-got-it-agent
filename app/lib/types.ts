@@ -190,6 +190,8 @@ export type RunRow = {
   cost: number | null;
   /** 한 줄 결과 요약. */
   result: string;
+  /** 깊게 볼 축 (--axis 입력값). 옛 실행에는 없다. */
+  focus?: string;
   /** 브리핑이 다룬 기간. 옛 실행에는 없다. */
   period?: { since: string; until: string };
 };

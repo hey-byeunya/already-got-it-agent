@@ -85,7 +85,8 @@ export function startOpencode(opts: OpencodeStartOptions): void {
     + `- MCP ops 도구의 run_id 에는 "${runId}" 를 반드시 넣는다.\n`
     + `- 사람에게 질문하지 말고 스스로 판단해 끝까지 진행한다.\n`
     + `- 이슈 생성·되돌리기 도구는 쓸 수 없다. 남길 만한 것은 최종 텍스트에 제안으로 적는다.\n`
-    + `- 지표 카드는 render_chart 로 실제 SVG 까지 그리고, 카드는 compose_card 로 한 장씩 만든 뒤 export_cardnews 를 한 번 부른다.`;
+    + `- 지표 카드는 render_chart 로 실제 SVG 까지 그리고, 카드는 compose_card 로 한 장씩 만든 뒤 멈춘다.\n`
+    + `  export_cardnews 는 부르지 않는다 — PNG·ZIP 내보내기는 사람이 화면 버튼으로 판단해 실행한다.`;
 
   const env: NodeJS.ProcessEnv = { ...process.env };
   env.OPENCODE_CONFIG_CONTENT = configContent(runsDir, FIXTURES_DIR, fixtureId, opsMode());
