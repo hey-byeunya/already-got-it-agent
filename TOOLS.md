@@ -98,14 +98,21 @@
 // 출력
 { "period": { "since": "...", "until": "..." },
   "series": [ { "date": "2026-09-02", "signups": 3, "owned_created": 41, "wish_created": 12,
-                "active_users": 18 } ],
-  "totals": { "signups": 14, "owned_created": 260, "wish_created": 77, "active_users": 42 },
+                "active_users": 18, "errors": 0 } ],
+  "totals": { "signups": 14, "owned_created": 260, "wish_created": 77, "active_users": 42,
+              "errors_total": 6 },
   "previous_period_totals": { "signups": 21, "owned_created": 310, "wish_created": 95,
-                              "active_users": 55 } }
+                              "active_users": 55, "errors_total": 1 },
+  "errors_by_route": [ { "route": "/items/[id]", "count": 4 } ],
+  "unavailable_fields": [] }
 ```
 
 - `previous_period_totals`는 **추이 판단의 근거**다. 이번 기간 숫자만으로는 늘었는지 줄었는지 알 수 없다.
 - 개인정보는 반환하지 않는다. 이메일·사용자 ID·물건 이름이 출력에 없다.
+  에러 로그도 마찬가지다 — `message`·`user_id`는 절대 내보내지 않고 route 이름과 건수만 본다.
+- `errors_by_route`는 그 기간 에러가 많은 route 상위 5개다. `지금 손봐야 할 것` 카드의 근거가 된다.
+- `error_logs` 테이블이 없는 DB에서는 에러 지표가 `null`이고 `unavailable_fields`에
+  `"error_logs"`가 들어간다. 0으로 채우지 않는다 — 모르는 것과 0은 다르다.
 - **실패 규칙**: RPC 실패 → 1회 재시도 후 이 축을 `확인 못 함`으로. 인증 실패 → 즉시 중단.
 - **빈 결과**: 신규 데이터가 없으면 0으로 채운 series를 돌려준다. 이건 실제 0이므로 결측과 다르다.
 

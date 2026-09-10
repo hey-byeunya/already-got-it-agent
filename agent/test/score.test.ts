@@ -61,11 +61,25 @@ test('채점기 — 환각 탐지', async (t) => {
     assert.equal(m?.value, '500');
   });
 
+  await t.test('에러 로그 낱말 옆의 틀린 숫자를 잡는다', () => {
+    // f2 집계: 일자별 0·0·0·4·2…, 합계 6, 직전 1
+    const h = [...findHallucinations('앱 에러 로그 99건 발생', f2).identifiers, ...findHallucinations('앱 에러 로그 99건 발생', f2).metricCandidates];
+    const m = h.find((x) => x.kind === 'metric_value');
+    assert.equal(m?.metric, '앱 에러');
+    assert.equal(m?.value, '99');
+  });
+
   // ── 경계: 잡으면 안 되는 것 ─────────────────────────────────
   await t.test('경계 — 실제 값은 잡지 않는다', () => {
     const text = '배포 3건 중 1건 실패 (`dpl_b2`, commit `44cc55d`). 이슈 #11 과 #13 이 열려 있다.'
       + ' 가입 17명, 활성 사용자 41명, 함수 오류 47건.';
     const r0 = findHallucinations(text, f2);
+    assert.deepEqual([...r0.identifiers, ...r0.metricCandidates], []);
+  });
+
+  await t.test('경계 — 실제 에러 값을 잡지 않고 함수 오류와 섞지 않는다', () => {
+    // '함수 오류 47건'은 함수 오류 축으로만, '앱 에러 6건'은 앱 에러 축으로만 본다
+    const r0 = findHallucinations('함수 오류 47건, 앱 에러 로그 6건', f2);
     assert.deepEqual([...r0.identifiers, ...r0.metricCandidates], []);
   });
 

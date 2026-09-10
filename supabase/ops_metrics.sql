@@ -21,6 +21,9 @@
 --   active_users  : 그 날짜에 있템/위시를 만들거나 고친 **서로 다른** 사용자 수.
 --                   기간 합계는 날짜별 합이 아니라 기간 전체의 distinct 수다.
 --                   조회만 한 사용자는 계측이 없어 여기 포함되지 않는다 (README 남은 과제).
+--   errors_total  : 그 기간 public.error_logs 행 수 (처리되지 않은 라우트 에러·Server Action 실패).
+--                   message/user_id 는 절대 내보내지 않는다 — route 이름과 건수만으로
+--                   "어디서 많이 터지는지"를 본다. 테이블이 없으면 null + unavailable_fields.
 
 -- 1. 비밀값 보관 --------------------------------------------------------------
 -- private 스키마는 PostgREST 가 노출하지 않는다. REST 로는 이 테이블을 읽을 수 없다.
@@ -59,6 +62,9 @@ declare
   v_series   jsonb;
   v_totals   jsonb;
   v_prev     jsonb;
+  v_has_err  boolean;
+  v_err_routes jsonb;
+  v_unavail  jsonb := '[]'::jsonb;
 begin
   -- 권한 확인이 가장 먼저다. 통과하지 못하면 아무것도 계산하지 않는다.
   -- 토큰 대조는 상수 시간 비교가 아니다. 이 규모에서는 Supabase 쪽 호출 제한에 맡긴다.
@@ -77,6 +83,14 @@ begin
 
   v_span := p_until - p_since;
   v_prev_since := p_since - v_span;
+
+  -- error_logs 가 없는 DB(구 마이그레이션)에서도 함수가 죽지 않게 한다.
+  -- 없으면 에러 지표는 null + unavailable_fields 로 알린다. 0 으로 채우지 않는다.
+  v_has_err := (to_regclass('public.error_logs') is not null);
+  if not v_has_err then
+    v_unavail := '["error_logs"]'::jsonb;
+    v_err_routes := '[]'::jsonb;
+  end if;
 
   -- 날짜별 시계열. 데이터가 없는 날도 0 으로 채운다 —
   -- 빠진 날짜를 결측으로 오해하지 않게 한다 (0 과 결측의 구별).
@@ -131,7 +145,11 @@ begin
                    where updated_at >= p_since and updated_at < p_until
                  union all
                  select user_id from public.wishlist_items
-                   where updated_at >= p_since and updated_at < p_until) t)
+                   where updated_at >= v_prev_since and updated_at < p_since) t),
+    'errors_total', case when v_has_err then
+                 (select count(*) from public.error_logs
+                   where created_at >= p_since and created_at < p_until)
+               else null end
   ) into v_totals;
 
   -- 직전 같은 길이 기간. 이 값이 있어야 "늘었다/줄었다"를 말할 수 있다.
@@ -147,8 +165,40 @@ begin
                    where updated_at >= v_prev_since and updated_at < p_since
                  union all
                  select user_id from public.wishlist_items
-                   where updated_at >= v_prev_since and updated_at < p_since) t)
+                   where updated_at >= v_prev_since and updated_at < p_since) t),
+    'errors_total', case when v_has_err then
+                 (select count(*) from public.error_logs
+                   where created_at >= v_prev_since and created_at < p_since)
+               else null end
   ) into v_prev;
+
+  -- 에러 다발 route 상위 5개. message/user_id 는 절대 내보내지 않는다.
+  if v_has_err then
+    select coalesce(jsonb_agg(jsonb_build_object('route', route, 'count', n)
+                              order by n desc, route), '[]'::jsonb)
+      into v_err_routes
+      from (select route, count(*) as n from public.error_logs
+             where created_at >= p_since and created_at < p_until
+             group by route order by n desc, route limit 5) t;
+
+    -- 일자별 에러 건수를 series 원소에 합친다. 없는 날은 0 으로 채운다.
+    declare
+      v_err_map jsonb;
+      v_len     integer;
+      v_i       integer;
+      v_d       text;
+    begin
+      select coalesce(jsonb_object_agg(d::text, n), '{}'::jsonb) into v_err_map
+        from (select created_at::date as d, count(*) as n from public.error_logs
+               where created_at >= p_since and created_at < p_until group by 1) t;
+      v_len := coalesce(jsonb_array_length(v_series), 0);
+      for v_i in 0..v_len - 1 loop
+        v_d := v_series -> v_i ->> 'date';
+        v_series := jsonb_set(v_series, array[v_i::text, 'errors'],
+                              to_jsonb(coalesce((v_err_map ->> v_d)::int, 0)));
+      end loop;
+    end;
+  end if;
 
   return jsonb_build_object(
     'period', jsonb_build_object('since', p_since, 'until', p_until,
@@ -156,10 +206,13 @@ begin
     'series', coalesce(v_series, '[]'::jsonb),
     'totals', v_totals,
     'previous_period_totals', v_prev,
-    'unavailable_fields', '[]'::jsonb,
+    'errors_by_route', v_err_routes,
+    'unavailable_fields', v_unavail,
     'metric_definitions', jsonb_build_object(
       'active_users', '그 기간에 있템/위시를 만들거나 고친 서로 다른 사용자 수. 조회만 한 사용자는 계측이 없어 빠진다',
-      'signups', 'auth.users.created_at 기준 신규 계정 수'
+      'signups', 'auth.users.created_at 기준 신규 계정 수',
+      'errors_total', '그 기간 error_logs 행 수. message/user_id 는 내보내지 않고 route·건수만 본다',
+      'errors_by_route', '그 기간 에러가 많은 route 상위 5개와 건수'
     )
   );
 end;

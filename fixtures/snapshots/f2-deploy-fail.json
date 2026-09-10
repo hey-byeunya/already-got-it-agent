@@ -62,63 +62,82 @@
         "signups": 3,
         "owned_created": 33,
         "wish_created": 10,
-        "active_users": 19
+        "active_users": 19,
+        "errors": 0
       },
       {
         "date": "2026-09-03",
         "signups": 2,
         "owned_created": 30,
         "wish_created": 9,
-        "active_users": 18
+        "active_users": 18,
+        "errors": 0
       },
       {
         "date": "2026-09-04",
         "signups": 3,
         "owned_created": 27,
         "wish_created": 11,
-        "active_users": 20
+        "active_users": 20,
+        "errors": 0
       },
       {
         "date": "2026-09-05",
         "signups": 1,
         "owned_created": 12,
         "wish_created": 3,
-        "active_users": 9
+        "active_users": 9,
+        "errors": 4
       },
       {
         "date": "2026-09-06",
         "signups": 3,
         "owned_created": 31,
         "wish_created": 10,
-        "active_users": 19
+        "active_users": 19,
+        "errors": 2
       },
       {
         "date": "2026-09-07",
         "signups": 2,
         "owned_created": 24,
         "wish_created": 8,
-        "active_users": 16
+        "active_users": 16,
+        "errors": 0
       },
       {
         "date": "2026-09-08",
         "signups": 3,
         "owned_created": 28,
         "wish_created": 9,
-        "active_users": 18
+        "active_users": 18,
+        "errors": 0
       }
     ],
     "totals": {
       "signups": 17,
       "owned_created": 185,
       "wish_created": 60,
-      "active_users": 41
+      "active_users": 41,
+      "errors_total": 6
     },
     "previous_period_totals": {
       "signups": 18,
       "owned_created": 195,
       "wish_created": 63,
-      "active_users": 43
-    }
+      "active_users": 43,
+      "errors_total": 1
+    },
+    "errors_by_route": [
+      {
+        "route": "/items/[id]",
+        "count": 4
+      },
+      {
+        "route": "/api/owned",
+        "count": 2
+      }
+    ]
   },
   "get_dev_activity": {
     "open_issues": [

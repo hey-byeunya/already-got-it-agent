@@ -54,6 +54,11 @@ const METRIC_PATHS: { keywords: string[]; paths: string[]; label: string }[] = [
             'get_user_metrics.previous_period_totals.wish_created'] },
   { label: '함수 오류', keywords: ['함수 오류', '함수오류'],
     paths: ['get_system_health.function_errors.count'] },
+  // 앱 에러 로그 집계. '함수 오류'(Vercel 관측)와 다른 축이다 — 낱말이 겹치지 않게
+  // '에러 로그'·'앱 에러'로만 잡는다. '에러' 단독은 너무 넓어 쓰지 않는다.
+  { label: '앱 에러', keywords: ['에러 로그', '앱 에러'],
+    paths: ['get_user_metrics.series[].errors', 'get_user_metrics.totals.errors_total',
+            'get_user_metrics.previous_period_totals.errors_total'] },
   { label: '배포', keywords: ['배포'],
     paths: ['get_system_health.summary.total', 'get_system_health.summary.ready',
             'get_system_health.summary.error'] },
