@@ -201,15 +201,24 @@ export default function Home() {
   }
 
   const runs = data?.runs ?? [];
+  // 목록 조회 기간. 기본은 최근 1주일 — [ NEW RUN ] 의 7d/15d/custom 과 같은 칩으로 고른다.
+  const [runRange, setRunRange] = useState<'7d' | '30d' | 'all'>('7d');
+  const rangeDays = runRange === '7d' ? 7 : runRange === '30d' ? 30 : null;
+  const shownRuns = rangeDays === null
+    ? runs
+    : runs.filter((r) => {
+      const t = Date.parse(r.created_at);
+      return Number.isFinite(t) && t >= Date.now() - rangeDays * DAY;
+    });
   const tally = {
-    ok: runs.filter((r) => r.status === 'done').length,
-    halted: runs.filter((r) => r.status === 'stopped' || r.status === 'interrupted').length,
-    failed: runs.filter((r) => r.status === 'failed').length,
+    ok: shownRuns.filter((r) => r.status === 'done').length,
+    halted: shownRuns.filter((r) => r.status === 'stopped' || r.status === 'interrupted').length,
+    failed: shownRuns.filter((r) => r.status === 'failed').length,
   };
   // 지우거나 새 실행이 생겨 목록이 짧아지면 빈 쪽에 머무를 수 있다. 마지막 쪽으로 당긴다.
-  const pageCount = Math.max(1, Math.ceil(runs.length / RUNS_PAGE));
+  const pageCount = Math.max(1, Math.ceil(shownRuns.length / RUNS_PAGE));
   const safePage = Math.min(page, pageCount - 1);
-  const pageRuns = runs.slice(safePage * RUNS_PAGE, safePage * RUNS_PAGE + RUNS_PAGE);
+  const pageRuns = shownRuns.slice(safePage * RUNS_PAGE, safePage * RUNS_PAGE + RUNS_PAGE);
 
   // 삭제는 제 열을 갖는다 — 비용 아래에 얹으면 어느 쪽 숫자인지 헷갈린다.
   const rowCols = narrow ? 'minmax(0,1fr) auto' : '250px 160px minmax(0,260px) 88px 62px';
@@ -246,18 +255,33 @@ export default function Home() {
             {/* 셈 세 개에 상태 배지와 같은 색을 준다 - 표를 훑기 전에 결이 먼저 보인다. */}
             <SectionHead
               labelText={
-                `[ RUNS ] ${runs.length} · ok ${tally.ok} · halted ${tally.halted} · failed ${tally.failed}`
+                `[ RUNS ] ${shownRuns.length} · ok ${tally.ok} · halted ${tally.halted} · failed ${tally.failed}`
               }
               label={<>
-                {`[ RUNS ] ${runs.length} · `}
+                {`[ RUNS ] ${shownRuns.length} · `}
                 <span className="ok">ok {tally.ok}</span>{' · '}
                 <span className="wrn">halted {tally.halted}</span>{' · '}
                 <span className="bad">failed {tally.failed}</span>
-              </>} />
+              </>}
+              right={
+                <span className="row" style={{ gap: 6 }}>
+                  {([['7d', '최근 1주일'], ['30d', '최근 30일'], ['all', '전체 기간']] as const)
+                    .map(([k, hint]) => (
+                      <button className="seg" key={k} aria-pressed={runRange === k}
+                        title={hint} onClick={() => { setRunRange(k); setPage(0); }}>
+                        {k}
+                      </button>
+                    ))}
+                </span>
+              } />
 
             {!data && <div className="note">불러오는 중…</div>}
-            {data && runs.length === 0 && (
-              <div className="note">아직 실행이 없다. 오른쪽에서 하나 걸어 본다.</div>
+            {data && shownRuns.length === 0 && (
+              <div className="note">
+                {runs.length === 0
+                  ? '아직 실행이 없다. 오른쪽에서 하나 걸어 본다.'
+                  : '이 기간에 실행이 없다. 위에서 기간을 넓혀 본다.'}
+              </div>
             )}
 
             {!narrow && runs.length > 0 && (
@@ -334,13 +358,13 @@ export default function Home() {
               );
             })}
 
-            {runs.length > RUNS_PAGE && (
+            {shownRuns.length > RUNS_PAGE && (
               <div className="spread" style={{ marginTop: 12, alignItems: 'center' }}>
                 <button className="chip" disabled={safePage === 0}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}>‹ newer</button>
                 <span className="note">
                   {safePage * RUNS_PAGE + 1}-{safePage * RUNS_PAGE + pageRuns.length}
-                  {' / '}{runs.length}
+                  {' / '}{shownRuns.length}
                   <span className="fnt"> · {safePage + 1}/{pageCount}</span>
                 </span>
                 <button className="chip" disabled={safePage >= pageCount - 1}
