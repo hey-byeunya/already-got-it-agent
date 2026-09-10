@@ -11,7 +11,7 @@
  *   - 사용량은 step_finish 합계다. 없으면 usage_known: false 로 남긴다.
  */
 import 'server-only';
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PROJECT_ROOT, RUNS_DIR, FIXTURES_DIR } from './paths';
@@ -116,10 +116,20 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   let killedBySilence = false;
   let sawAnyLine = false;
 
-  // 콜백은 비워 둔다 — 결과는 'close'·'error' 이벤트로 받는다. 콜백 없이 부르면 타입이 안 맞는다.
-  const child = execFile(opencodeBin(), args, {
-    env, maxBuffer: 32 * 1024 * 1024,
-  }, () => {});
+  // stdin 은 반드시 닫힌 것으로 준다 ('ignore' → /dev/null 즉시 EOF).
+  // execFile 기본값(pipe)은 파이프를 열어 둔 채 닫지 않는데, opencode 부트스트랩이
+  // 거기서 멈춰 선다 — 세션 생성 전에 0줄·CPU 0으로 영원히 잔다 (실측).
+  // spawn 을 쓰는 이유도 같다. execFile 옵션 타입에는 stdio 자리가 없다.
+  // stderr 도 버리지 않고 모아 둔다. stderr 를 안 보면 실패 원인을 알 수 없다.
+  let stderrTail = '';
+  let stdoutBuffered = 0;
+  const MAX_BUFFER = 32 * 1024 * 1024;
+  const child = spawn(opencodeBin(), args, {
+    env, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  child.stderr?.on('data', (chunk: Buffer | string) => {
+    stderrTail = `${stderrTail}${String(chunk)}`.slice(-4000);
+  });
   const deadline = setTimeout(() => { killedByTimeout = true; child.kill('SIGTERM'); },
     OPENCODE_TIMEOUT_MS);
   // 첫 줄 감시. opencode 는 부트스트랩(설정·MCP·프로바이더 목록)이 막히면
@@ -133,6 +143,13 @@ export function startOpencode(opts: OpencodeStartOptions): void {
   let stdout = '';
   child.stdout?.on('data', (chunk: Buffer | string) => {
     stdout += String(chunk);
+    // execFile 의 maxBuffer 대신 직접 잰다. 넘치면 끊고 그렇다고 적는다.
+    stdoutBuffered += Buffer.byteLength(String(chunk));
+    if (stdoutBuffered > MAX_BUFFER) {
+      errors.push('출력이 32MB를 넘어 끊었다');
+      child.kill('SIGTERM');
+      return;
+    }
     const lines = stdout.split('\n');
     stdout = lines.pop() ?? '';
     for (const line of lines) {
@@ -188,7 +205,8 @@ export function startOpencode(opts: OpencodeStartOptions): void {
             : killedByTimeout
             ? `${OPENCODE_TIMEOUT_MS / 60000}분 상한에서 끊었다 (SIGTERM)`
             : `종료 코드 ${code}${signal ? ` (시그널 ${signal})` : ''}`)
-            + (errors.length ? `\n${errors.join('\n')}` : ''),
+            + (errors.length ? `\n${errors.join('\n')}` : '')
+            + (stderrTail.trim() ? `\n[stderr]\n${stderrTail.trim()}` : ''),
           isError: true });
       }
       s.usage = sawFinish || code === 0 ? {

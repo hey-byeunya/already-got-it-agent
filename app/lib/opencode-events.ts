@@ -30,7 +30,10 @@ export function parseOpencodeLine(line: string): ParsedLine {
   }
   if (e.type === 'tool_use' && part.type === 'tool' && typeof part.tool === 'string') {
     const state = (part.state ?? {}) as Record<string, unknown>;
-    const output = typeof state.output === 'string' ? state.output : JSON.stringify(state.output ?? '');
+    // 실패한 호출은 output 대신 error 에 든다. output 만 보면 `""` 로 보인다 (실측).
+    const output = typeof state.output === 'string' ? state.output
+      : state.error !== undefined ? JSON.stringify(state.error)
+      : JSON.stringify(state.output ?? '');
     return {
       kind: 'tool',
       tool: shortTool(part.tool),
