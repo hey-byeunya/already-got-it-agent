@@ -49,6 +49,12 @@ cat .mcp.json   # already-got-it-ops 등록 확인
 | `GITHUB_ALLOWED_REPOS` | 허용 저장소 목록. 밖은 도구가 거절 | 가능 |
 | `NEXT_PUBLIC_SUPABASE_URL` | 데이터 소스 | 가능 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 집계 RPC 접근 | 가능 |
+| `OPS_MODE` | `fixture` 기본 · `live`면 실제 API. 화면 배지가 매번 다시 읽어 표시한다 | 가능 |
+| `OPS_FIXTURE_ID` | 픽스처 기본값. live에서는 서버도 무시한다 | 가능 |
+| `GITHUB_ALLOWED_LABELS` | 임의 라벨 금지 목록 | 가능 |
+| `OPS_APPROVAL_TTL` | 승인 토큰 유효 초 (기본 600) | 가능 |
+| `OPS_METRICS_TOKEN` | 집계 RPC 비밀값. SQL 안의 값과 같아야 한다 | **불가** |
+| `OPS_ALLOW_LIVE_WRITES` | `1`이면 실제 이슈 생성·닫기 허용 (기본 `0`) | 가능(값이 `0`일 때) |
 | `OPS_OPENCODE_BIN` | opencode 엔진의 바이너리 경로 (기본 `opencode`) | 가능 |
 | `OPS_OPENCODE_MODEL` | opencode 엔진 기본 모델 (예: `google/gemini-3.5-flash-lite`) | 가능 |
 
@@ -68,6 +74,9 @@ cat .mcp.json   # already-got-it-ops 등록 확인
 - 질문 대기·승인 대기가 없다. 이슈 생성·되돌리기 2개는 끄고, 파일 쓰기·셸도 막는다.
   이슈 제안은 브리핑 본문에 적힌다.
 - 사용량은 `step_finish` 합계다. 없으면 `usage_known: false`로 표시한다.
+- 멈추면 아는 만큼만 빨리 말한다. 첫 줄 90초 감시(부트스트랩에서 선 채로 0줄이면 끊는다)와
+  자체 상한을 둔다 — `execFile` timeout에 맡기면 SIGTERM만 남아 원인을 구별하지 못한다.
+  무료 모델 목록(`GET /api/opencode-models`)은 60초 캐시로 둔다.
 - 실측 (2026-09-10): `opencode mcp list`에서 `ops` connected 확인.
   도구 이름은 `ops_도구` 형태라 `ops_create_github_issue` 토글로 끈다.
 

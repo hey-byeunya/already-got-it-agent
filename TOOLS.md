@@ -192,6 +192,7 @@
 // 출력
 { "card_no": 2, "svg_path": "cards/02.svg", "json_path": "cards/02.json",
   "rendered_ok": true, "chart_embedded": true, "chart_rerendered": false,
+  "sources_verified": [{ "tool": "get_user_metrics", "field": "totals" }],
   "cover_source": null }
 ```
 

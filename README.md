@@ -65,6 +65,8 @@ Claude Code는 `.mcp.json`으로 같은 서버를 붙여 쓴다.
 | `get_dev_activity` | GitHub API | 읽기 전용, 본인 저장소만 | — |
 | `web_search` | 웹 검색 | 읽기 전용 | — |
 | `render_chart` | 앱 내부 (SVG) | 외부 호출 없음. 근거 없이는 거절 | — |
+| `compose_card` | 앱 내부 (SVG 합성) | `runs/{run_id}/` 아래만 쓰기. 근거 형식 어긋나면 거절 | — |
+| `export_cardnews` | 앱 내부 (PNG·ZIP) | 사람이 눌렀을 때만 굽는다 | — |
 | `create_github_issue` | GitHub **쓰기** | issue 생성만 | **필수** |
 | `revert_issue` | GitHub **쓰기** | 승인 기록에 있는 이슈만 닫기 | **필수** |
 
@@ -89,6 +91,13 @@ Agent SDK 문서가 경고하듯 **자동 승인된 도구는 `canUseTool` 콜�
 덤으로 자체 검사가 하나 생겼다. 콜백이 가려지면 SDK가 `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` 경고를
 띄우므로, 이를 잡아 **실패로 처리**한다. 자세한 근거는 `DECISIONS.md` D14.
 
+### Claude 크레딧이 바닥나면 — opencode 엔진
+
+시작 화면에서 엔진을 `opencode`로 바꾸면 같은 브리핑을 `opencode run --format json`으로 돈다.
+모델은 무료 목록(`GET /api/opencode-models`, 단가표 기준 무료 판정)에서 고른다.
+이 경로에는 질문 대기·승인 대기가 없고, 쓰기 도구 2개는 꺼져 있다 — 이슈 제안은 본문에 적힌다.
+멈춘 실행은 첫 줄 90초 감시·자체 상한으로 끊고, 아는 만큼만 빨리 말한다 (`DECISIONS.md` D32).
+
 ## 문서
 
 | 파일 | 내용 |
@@ -99,7 +108,7 @@ Agent SDK 문서가 경고하듯 **자동 승인된 도구는 `canUseTool` 콜�
 | [API_SPEC.md](./API_SPEC.md) | 화면과 서버의 약속 — 상태값 · 중복 방지 · 새로고침과 재시작 |
 | [EVAL.md](./EVAL.md) | 평가 세트 · 지표 · 세팅 변화 실험표 · 실패 사례 |
 | [RUN.md](./RUN.md) | 실행 방법 · 환경변수 · 수용 기준 · 캡처 목록 |
-| [DECISIONS.md](./DECISIONS.md) | 선택과 이유 (D1~D18) |
+| [DECISIONS.md](./DECISIONS.md) | 선택과 이유 (D1~D32) |
 | `fixtures/` | 평가용 운영 스냅샷 4개 (정답 포함) |
 | `evidence/` | 실행 화면 · 실행 기록 · 결과 파일 · 검증 기록 |
 
@@ -166,6 +175,8 @@ E4 에서 얻은 것: 이 지시의 값은 **읽는 사람이 감사할 수 있�
 - 지어낸 근거 카드가 `source_not_found`로 거절된 뒤 모델이 내용을 바꿔 완성했다.
 - 이슈 생성 제안 2건은 승인 없이 거절됐고 `permission_denials` 2건이 기록에 남았다.
 - 자세한 근거는 `DECISIONS.md` D24, 실행 방법은 `RUN.md` live 실행.
+- 두 번째 실행 (`live-t2`, 같은 조건)도 `done` — 비용이 절반($0.3744)으로 갈렸다.
+  같은 조건도 편차가 크므로 1회 값으로 효율을 주장하지 않는다.
 
 ## 남은 과제
 

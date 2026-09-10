@@ -15,8 +15,8 @@
 | `ui-01-home.png` | — | 시작 화면 — 머리의 **`LIVE`/`FIXTURE` 모드 배지**(D28) · 지난 실행 10건(상태·결과 한 줄·비용) · 자격증명 출처. **비용을 모르는 실행은 «확인 못 함»** | 4 |
 | `ui-02-run-done.png` | `web-mtucmfut` | 완주한 실행 **전체**. 프롬프트 줄 · `[ PROGRESS ]` 6단계 · `[ AXES ]` 4축 실수치 · `[ BUDGET ]` 상한 대비 게이지 · `[ DECIDED BY HUMAN ]` 4건(답변 1 · 승인 1 · 거절 2) · `[ CARDS ]` 7장(근거 대조를 통과한 차트 포함) · `[ TAIL -F ]` 61건 | 2·3·4 |
 | `ui-03-stopped-usage.png` | `demo-stopped` | 종료 조건(`maxToolCalls`) 발동 + **`usage_known: false` → 호박색 «확인 못 함»** + 아는 값(캐시 읽기 58,094) | 3·4 |
-| `ui-04-interrupted.png` | `demo-approval` | 서버 재시작 후 `interrupted`. `--resume` 은 세션이 없어 **비활성**, 걸려 있던 승인은 `[ STALE APPROVAL ] 무효` | 3 |
-| `ui-05-empty-run.png` | `web-mtuaihxp` | 도구를 부르기 전에 실패한 실행. 네 축·카드·상한이 전부 없어도 **깨지지 않고 «없다»고 말한다** | 4 |
+| `ui-04-interrupted.png` | `demo-interrupted` | 서버 재시작 후 `interrupted`. `--resume`·`--retry` 버튼, `[ STALE QUESTION ]` 무효 처리, 세션 ID 표시 | 3 |
+| `ui-05-empty-run.png` | `web-mtuaform` (opencode 엔진) | 도구를 부르기 전에 실패한 실행. 네 축·카드·상한이 전부 없어도 **깨지지 않고 «없다»고 말한다** | 4 |
 | `ui-06-cardnews-screen.png` | `web-mtucmfut` | **카드뉴스 제작 화면** — `[ CARDS ] 7` 전체. 로그 열이 접히는 1000px 폭이라 카드가 한 장씩 다 보인다. 카드마다 심각도 딱지·근거 줄이 붙어 있다 | 결과물 |
 | `ui-07-cardnews-output.png` | `web-mtucmfut` | **내보낸 결과물** — `cardnews-web-mtucmfut.zip` 안의 PNG 7장(1080×1350)을 펼쳐 놓은 대지. 파일명·심각도·제목을 함께 적었다 | 결과물 |
 | `ui-08-card-sample.png` | `web-mtucmfut` | 카드 낱장 원본 (1080×1350). `README.md` 가 이 파일을 보여준다 | 결과물 |

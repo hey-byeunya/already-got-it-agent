@@ -1,10 +1,10 @@
 # 도메인 도구 MCP 서버
 
-「이미 있어」 운영 브리핑 에이전트의 도구 7개를 **stdio MCP 서버**로 노출한다.
+「이미 있어」 운영 브리핑 에이전트의 도구 9개를 **stdio MCP 서버**로 노출한다.
 구현은 여기 한 곳뿐이고, 두 클라이언트가 같은 서버를 붙여 쓴다.
 
 ```
-mcp-server/            ← 도구 7개 (구현은 여기 한 곳)
+mcp-server/            ← 도구 9개 (구현은 여기 한 곳)
    ↑ 붙여 씀
 app/  (Next.js)        ← Claude Agent SDK 의 mcpServers 옵션
 Claude Code            ← 저장소 루트의 .mcp.json
@@ -18,7 +18,7 @@ Claude Code            ← 저장소 루트의 .mcp.json
 ```sh
 npm install
 npm run build
-npm run verify        # 빌드 + 자체 검사 35개 + 스모크 12단계
+npm run verify        # 빌드 + 자체 검사 + 스모크
 ```
 
 | 명령 | 하는 일 |
@@ -33,7 +33,7 @@ npm run verify        # 빌드 + 자체 검사 35개 + 스모크 12단계
 | `OPS_MODE` | 하는 일 |
 |---|---|
 | `fixture` (기본) | 외부 API 를 부르지 않고 `../fixtures/snapshots/*.json` 을 읽는다. **쓰기 도구도 실제 GitHub 을 바꾸지 않는다** |
-| `live` | 실제 API 를 부른다. **아직 구현하지 않았다** — 호출하면 `live_not_implemented` 로 분명히 알린다 |
+| `live` | 실제 API 를 부른다. `npm run smoke-live` 로 읽기 경로를 확인한다 |
 
 기본값이 `fixture` 인 이유: 실수로 실제 저장소에 쓰는 것보다 실수로 픽스처를 읽는 편이 낫다.
 
@@ -44,7 +44,7 @@ npm run verify        # 빌드 + 자체 검사 35개 + 스모크 12단계
 | `OPS_MODE` | `fixture` | 모드 |
 | `OPS_RUNS_DIR` | `runs` | 실행 기록·승인 기록·차트가 쌓이는 곳 |
 | `OPS_FIXTURES_DIR` | `../fixtures/snapshots` | 픽스처 위치 |
-| `OPS_FIXTURE_ID` | (없음) | 실행에 픽스처가 지정되지 않았을 때의 기본값 |
+| `OPS_FIXTURE_ID` | (없음) | 실행에 픽스처가 지정되지 않았을 때의 기본값. **live에서는 언제나 무시된다** (`DECISIONS.md` D32 — 픽스처 누수를 읽는 자리에서 막는다) |
 | `GITHUB_ALLOWED_REPOS` | `hey-byeunya/already-got-it` | **이 목록 밖 저장소는 도구가 거절한다** |
 | `GITHUB_ALLOWED_LABELS` | `ops,bug,enhancement,question` | 임의 라벨을 만들지 않는다 |
 | `OPS_APPROVAL_TTL` | `600` | 승인 토큰 유효 시간(초) |
@@ -54,7 +54,7 @@ npm run verify        # 빌드 + 자체 검사 35개 + 스모크 12단계
 
 ## Claude Code 에서 붙이기
 
-저장소 루트의 `.mcp.json` 이 이 서버를 등록한다. 빌드한 뒤 저장소를 Claude Code 로 열면 도구 7개가 뜬다.
+저장소 루트의 `.mcp.json` 이 이 서버를 등록한다. 빌드한 뒤 저장소를 Claude Code 로 열면 도구 9개가 뜬다.
 
 ```sh
 npm run build && cd .. && claude
@@ -69,14 +69,14 @@ npm run build && cd .. && claude
 |---|---|---|
 | ① `_meta["anthropic/requiresUserInteraction"]` | 도구 정의 | `src/register.ts` |
 | ② `approval_token` 검사 | 서버 실행 직전 | `src/approvals.ts` |
-| ③ `PreToolUse` 훅 | (앱에서 구현 예정) | — |
+| ③ `PreToolUse` 훅 | 앱 (`agent/src/hook.ts`) | 설정과 무관한 불변식 2종만 검사한다 |
 
 ①은 **allow 규칙이 매치돼도 항상 승인 콜백으로 떨어지게** 만든다. Agent SDK 문서가 경고하듯
 자동 승인된 도구는 `canUseTool` 에 도달하지 않으므로, 클라이언트 설정 한 줄로 게이트가 무력화될 수 있다.
 ①이 그걸 막고, ②가 앱 우회를 막는다.
 
 토큰 발급은 이 서버의 일이 **아니다.** 사람의 승인을 받은 앱만 발급한다.
-앱이 아직 없는 동안은 `scripts/mint-approval.mjs` 가 그 자리를 대신한다.
+개발·검증용 발급기는 `scripts/mint-approval.mjs` 에 따로 있다.
 
 ## 자체 검사
 
@@ -90,16 +90,20 @@ Day 38 하네스 `checks/` 방식이다.
 | `revert-scope` | 승인 기록에 없는 이슈 닫기 | 자기 실행이 만든 이슈는 되돌림. 두 번 되돌리지 않음(멱등) |
 | `missing-vs-zero` | 결측을 0 으로 읽기 | 실제 0(배포 0건)은 0 으로. 낮은 값은 결측이 아님 |
 | `tool-surface` | 쓰기 도구에 `_meta` 누락 | 읽기 도구에는 붙지 않음(매번 물으면 게이트가 무의미) |
+| `cards` | 글자 잘림·출처 띠 덮음·깨진 에셋을 그냥 넘기기 | 상자에 들어가면 통과. 에셋이 없어도 로컬 폴백으로 그린다 |
+| `live-mode` | live에서 픽스처 섞기·형태 어긋난 응답을 빈 정상으로 읽기 | fixture 모드 정상은 통과. `validate` 없는 호출은 검사하지 않는다 |
 
 ## 구조
 
 | 파일 | 역할 |
 |---|---|
 | `src/index.ts` | 서버 진입점. stdout 은 프로토콜 전용이라 사람에게 하는 말은 stderr 로 |
-| `src/tools.ts` | 도구 7개. description 은 `../TOOLS.md` 와 같은 계약 |
+| `src/tools.ts` | 도구 9개. description 은 `../TOOLS.md` 와 같은 계약 |
 | `src/register.ts` | 등록 공통부. 기록·시간·오류 변환·`_meta` |
 | `src/approvals.ts` | 승인 토큰 검사·소비, 승인 기록 |
 | `src/runlog.ts` | 도구 호출 **전문** + 실행 메타. 요약만 남기면 사후에 되짚을 수 없다 |
-| `src/chart.ts` | SVG 렌더링 + **근거 대조** |
+| `src/chart.ts` | SVG 렌더링 + **근거 대조** (`render_chart`·`compose_card`가 공유) |
+| `src/cards.ts` | 카드 합성·PNG·ZIP. 표지 삽화(agy 우선·로컬 폴백) |
+| `src/live/` | live 모드 실제 API 호출부 (Vercel·Supabase·GitHub·권고) |
 | `src/fixtures.ts` | 픽스처 로더. 실패를 담은 픽스처는 실패로 올린다 |
 | `src/errors.ts` | `ToolError` — 오류를 예외가 아니라 도구 결과로 되돌린다 |

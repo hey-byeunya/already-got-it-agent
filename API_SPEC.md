@@ -27,7 +27,9 @@ API는 웹 화면이 서버에 요청하는 약속이다. 여기 적은 상태�
 |---|---|---|---|---|---|
 | `GET /api/runs` | 실행 목록·픽스처 목록·자격증명 출처 | — | `{ runs[], fixtures[], credential_source }` | — | 구현 |
 | `POST /api/runs` | 브리핑 실행 생성 | `{ fixture_id?, goal?, focus?, engine? ("claude"\|"opencode"), model? }` | `{ run_id }` (201) | — | 구현 |
-| `GET /api/runs/{id}` | 상태·대기 질문·진행 조회 | — | `RunState` 전문 | `run_not_found` 404 | 구현 |
+| `GET /api/runs/{id}` | 상태·대기 질문·진행 조회 | — | `RunState` + 유도값(`axes`·`cards`·`steps`·`links`·`exports`, 디스크에서 읽어 얹는다) | `run_not_found` 404 | 구현 |
+| `DELETE /api/runs/{id}` | 실행 삭제 (두 번 눌러야 화면이 부른다) | — | `{ ok: true }` | `run_not_found` 404 · `run_is_live`·`invalid_run_id` 409 | 구현 |
+| `GET /api/opencode-models` | 무료 모델 목록 (60초 캐시) | — | `{ models: [{id, name}], cached }` | opencode 실패 시 `{ models: [], error }` 502 | 구현 |
 | `GET /api/runs/{id}/trace` | 실행 로그 (도구·호출 이유·입력·결과·소요) | `?after=` | `{ events[] }` | — | 미구현 — `GET /api/runs/{id}`의 `trace`로 대신 본다 |
 | `POST /api/runs/{id}/answers` | 질문 답변 제출 | `{ question_id, version, answers }` | `{ ok: true }` | `invalid_body` 400 · `already_answered`·`stale_version`·`stale_question`·`not_waiting`·`no_live_callback` 409 · `run_not_found` 404 | 구현 |
 | `POST /api/runs/{id}/approvals` | **쓰기 도구 승인·거절** → 대기 콜백을 푼다 (토큰 발급은 콜백이 한다) | `{ approval_id, version, approved, reason? }` | `{ ok: true }` | `invalid_body` 400 · `already_decided`·`stale_version`·`stale_approval`·`not_waiting`·`no_live_callback` 409 · `run_not_found` 404 | 구현 |
@@ -35,6 +37,8 @@ API는 웹 화면이 서버에 요청하는 약속이다. 여기 적은 상태�
 | `POST /api/runs/{id}/storyboard/approve` | 스토리보드 승인 | `{ storyboard_version }` | `{ status }` | 버전 불일치면 거절 | 미구현 — 질문 대기(`AskUserQuestion`)로 대신 받는다 |
 | `POST /api/runs/{id}/cards/{n}/revise` | 카드 하나만 수정 | `{ title?, body? }` | `{ card }` | 다른 카드 결과는 보존 | 미구현 — `compose_card`를 그 번호로 다시 부른다 |
 | `POST /api/runs/{id}/resume` | 서버 재시작 후 재개 또는 재시도 | `{ mode: "resume"\|"retry" }` | `{ ok, mode }` | `run_not_found` 404 · `already_live`·`no_session_to_resume` 409 | 구현 |
+| `POST /api/runs/{id}/export` | 카드뉴스 굽기 — **사람이 눌렀을 때만** | — | `exportCardnews` 결과 그대로 | `run_not_found` 404 · `already_exporting`·도구 오류 409 | 구현 |
+| `GET /api/runs/{id}/export/[file]` | 결과물 내려받기. `zip`·`sources`·`NN.png` 세 형태만 받는다 | `?inline` (미리보기) | ZIP·PNG·`SOURCES.md` (스트리밍) | 형태 밖·없으면 400·404 | 구현 |
 | `GET /api/runs/{id}/charts/{file}` | 카드 차트 SVG 서빙 | — | SVG | 없으면 404 | 구현 |
 | `GET /api/runs/{id}/export` | PNG · ZIP · 근거 기록 | — | 파일 | 미승인이면 거절 | 미구현 — `export_cardnews` 도구 결과를 내려받는다 |
 
@@ -89,6 +93,8 @@ API는 웹 화면이 서버에 요청하는 약속이다. 여기 적은 상태�
   크래시(`error_during_execution`)나 예산 초과(`error_max_budget_usd`)에서 발생한다.
 - `cost_is_estimate`는 항상 `true`다. 클라이언트 측 추정값임을 화면에 표시한다.
 - 출력 토큰은 result 메시지에서 읽은 값이다 (per-step 값은 placeholder).
+- 자격증명 출처는 `api_key`·`auth_token`·`stored_login`·`opencode` 중 하나다.
+  opencode 실행은 `step_finish` 합계로 집계하고 캐시 토큰은 0으로 둔다.
 
 ## 오류 표시
 
