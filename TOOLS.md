@@ -212,6 +212,8 @@
   (`agy-asset`·`local-svg`)로 밝힌다. `cover`가 아니면 `null`이다.
 - `chart_path`는 `render_chart`가 돌려준 `charts/NN.svg` 형태만 받는다. 임의 경로는
   `chart_path_not_allowed`로, 없는 파일은 `chart_not_found`로 거절한다.
+- `title`은 **한 줄 문자열**이다. `["a", "b"]` 같은 배열 문자열이 오면 대괄호·따옴표를
+  벗겨 `a, b` 로 그린다. 파싱에 실패하면 원문을 둔다 — 제목을 버리지 않는다.
 - **실패 규칙**: 같은 `card_no`로 다시 부르면 그 카드만 덮어쓴다. 다른 카드 결과는 유지한다.
 - `sources` 각 행은 `"도구 · 필드"` 형식이다. cover가 아닌 카드는 각 행이 이번 실행의
   실제 호출·값을 가리키는지 대조하고, 어긋나면 `source_shape_invalid`·`source_not_found`·
