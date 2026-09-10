@@ -133,14 +133,17 @@ function stamp(v: string): string {
  * 무엇을 묻는지조차 눈에 안 들어왔다.
  *
  * 첫 덩이(묻는 문장)만 굵게 두고, 나머지는 본문으로 내린다.
- * 한 줄이 너무 길면 눈이 다음 줄 첫머리를 못 찾으므로 폭도 묶는다.
+ *
+ * **폭은 묶지 않는다.** 읽기 편한 줄 길이로 좁히면 한 항목이 여러 줄로 쪼개져,
+ * 승인 여부를 가르는 조건이 줄바꿈 너머로 넘어간다 — 짧게 읽히는 대신
+ * 뜻을 잘못 집을 여지가 생긴다. 이 글은 사람이 판단을 내리는 자리다.
  */
 function QuestionText({ text, multi }: { text: string; multi: boolean }) {
   const cut = text.indexOf('\n\n');
   const lead = (cut === -1 ? text : text.slice(0, cut)).trim();
   const body = cut === -1 ? '' : text.slice(cut + 2).trim();
   return (
-    <div style={{ marginBottom: 10, maxWidth: '76ch' }}>
+    <div style={{ marginBottom: 10 }}>
       <div className="prose"
         style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', wordBreak: 'keep-all' }}>
         {lead}
