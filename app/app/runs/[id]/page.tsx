@@ -670,18 +670,22 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
                   트렌드 축의 «N hit» 이 어디서 왔는지 주소로 확인할 수 있어야 한다.
                 */}
                 {s.links.web.length > 0 && (
-                  <div className="note" style={{ marginTop: 8 }}>
-                    <span className="ok">출처</span>{' '}
-                    {s.links.web.map((w, i) => (
-                      <span key={w.url}>
-                        {i > 0 && <span className="fnt"> · </span>}
-                        <Out href={w.url} title={w.url}>{w.title}</Out>
-                        {w.published_at
-                          ? <span className="fnt"> {w.published_at}</span>
-                          : <span className="wrn"> 게시일 미확인</span>}
-                      </span>
-                    ))}
-                  </div>
+                  <details className="fold note" style={{ marginTop: 8 }}>
+                    <summary>
+                      <span className="ok">출처</span>
+                      <span className="ink">{s.links.web.length}</span>
+                    </summary>
+                    <div style={{ marginTop: 6 }}>
+                      {s.links.web.map((w, i) => (
+                        <div key={w.url} style={{ marginTop: i === 0 ? 0 : 4 }}>
+                          <Out href={w.url} title={w.url}>{w.title}</Out>
+                          {w.published_at
+                            ? <span className="fnt"> · {w.published_at}</span>
+                            : <span className="wrn"> · 게시일 미확인</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 )}
               </>
             ) : (
@@ -1154,21 +1158,36 @@ function CardsPane({ cards, charts, runId, links, exports: ex, exporting, busy, 
                 <img className="chart" src={`/api/runs/${runId}/${chart.svg_path}`} alt={`카드 ${c.card_no} 차트`} />
               </div>
             )}
-            {c.sources.length > 0 && (
-              <div className="src">
-                <div>근거 {c.sources.map((x, i) => (
-                  <span key={i}>{i > 0 && ' · '}<span className="ok">{x}</span></span>
-                ))}</div>
-                {webSourcesFor(c, links).map((w) => (
-                  <div key={w.url} style={{ marginTop: 4 }}>
-                    ↗ <Out href={w.url}>{w.title}</Out>
-                    {w.published_at
-                      ? <span className="fnt"> · {w.published_at}</span>
-                      : <span className="wrn"> · 게시일 미확인</span>}
+            {c.sources.length > 0 && (() => {
+              const web = webSourcesFor(c, links);
+              return (
+                <details className="src fold">
+                  {/* 열지 않아도 몇 건인지는 보인다 - 근거가 붙어 있다는 사실이 이 카드의 자격이다. */}
+                  <summary>
+                    <span>
+                      <span className="ok">근거</span> <span className="ink">{c.sources.length}</span>
+                      {web.length > 0 && <>
+                        <span className="fnt"> · </span>
+                        <span className="ok">링크</span> <span className="ink">{web.length}</span>
+                      </>}
+                    </span>
+                  </summary>
+                  <div style={{ marginTop: 6 }}>
+                    {c.sources.map((x, i) => (
+                      <div key={i} style={{ marginTop: i === 0 ? 0 : 3 }}><span className="ok">{x}</span></div>
+                    ))}
+                    {web.map((w) => (
+                      <div key={w.url} style={{ marginTop: 4 }}>
+                        ↗ <Out href={w.url}>{w.title}</Out>
+                        {w.published_at
+                          ? <span className="fnt"> · {w.published_at}</span>
+                          : <span className="wrn"> · 게시일 미확인</span>}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                </details>
+              );
+            })()}
           </div>
         );
       })}
