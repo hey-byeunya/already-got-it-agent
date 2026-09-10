@@ -20,12 +20,31 @@ type Deployment = {
   meta?: Record<string, unknown>; url?: string;
 };
 
+/**
+ * 찾아갈 수 있는 링크. 배포 URL 과 커밋 URL 을 붙인다 —
+ * 빌드 에러가 나면 모델이 이슈 본문에 이 링크를 넣어 사람이 바로 열게 한다.
+ * 모르면 null 이다. 자리 문자열을 넣지 않는다.
+ */
+export function deploymentLinks(d: Deployment): { url: string | null; commit_url: string | null } {
+  const url = typeof d.url === 'string' && d.url !== '' ? `https://${d.url}` : null;
+  const sha = d.meta?.githubCommitSha;
+  const org = d.meta?.githubCommitOrg;
+  const repo = d.meta?.githubCommitRepo;
+  const host = typeof d.meta?.githubHost === 'string' && d.meta.githubHost !== ''
+    ? String(d.meta.githubHost) : 'github.com';
+  const commit_url = typeof sha === 'string' && typeof org === 'string' && typeof repo === 'string'
+    ? `https://${host}/${org}/${repo}/commit/${sha}` : null;
+  return { url, commit_url };
+}
+
 export type SystemHealth = {
   period: { since: string; until: string; tz: string };
   deployments: Array<{
     /** 모름은 null 이다. '(id 없음)' 같은 자리 문자열을 넣지 않는다 — 모델이 사실로 읽는다. */
     id: string | null; created_at: string | null; state: string; target: string;
     commit_sha: string | null; build_error: string | null;
+    /** 배포 URL·커밋 URL. 모르면 null — 이슈·카드에서 찾아가는 용도다. */
+    url: string | null; commit_url: string | null;
   }>;
   summary: { total: number; ready: number; error: number };
   function_errors: { count: number | null; window: string | null; available: boolean };
@@ -96,6 +115,7 @@ export async function systemHealth(
     commit_sha: typeof d.meta?.githubCommitSha === 'string'
       ? (d.meta.githubCommitSha as string).slice(0, 7) : null,
     build_error: d.uid ? (errorText.get(d.uid) ?? null) : null,
+    ...deploymentLinks(d),
   }));
 
   return {

@@ -13,6 +13,17 @@ import { addDays, isDateOnly } from './period.js';
 
 const RPC = 'ops_user_metrics';
 
+/**
+ * 관측 대상 앱의 공개 URL. 에러 route("/items/..." 등)를 찾아갈 수 있는 링크로 바꾼다.
+ * `action:` 접두 Server Action 은 페이지가 아니라 링크가 없다 (null).
+ */
+export const APP_BASE_URL = 'https://already-got-it.vercel.app';
+
+/** route 를 찾아갈 수 있는 URL 로 바꾼다. 페이지가 아니면 null 이다. */
+export function routeUrl(route: string): string | null {
+  return route.startsWith('/') ? `${APP_BASE_URL}${route}` : null;
+}
+
 /** ISO 8601 이든 YYYY-MM-DD 이든 날짜 부분만 쓴다. RPC 인자가 date 다. */
 export function toDate(v: string, which: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
@@ -85,7 +96,16 @@ export async function userMetrics(
   }
 
   if (!out || typeof out !== 'object') {
-    throw new ToolError('unexpected_rpc_shape', '집계 함수가 객체를 돌려주지 않았다', { got: typeof out });
+    throw new ToolError('unexpected_rpc_shape', '집계 함수가 객체를 돌려주지 않는다', { got: typeof out });
   }
-  return { ...(out as Record<string, unknown>), source: { mode: 'live', rpc: RPC } };
+  const data = { ...(out as Record<string, unknown>) };
+  // 에러 다발 route 에 찾아갈 링크를 붙인다. 이슈 본문·카드에서 바로 열게 한다.
+  // route 가 페이지가 아니면(null) 이름만 남긴다 — 없는 링크를 지어내지 않는다.
+  if (Array.isArray(data.errors_by_route)) {
+    data.errors_by_route = (data.errors_by_route as Array<Record<string, unknown>>).map((e) => ({
+      ...e,
+      url: typeof e.route === 'string' ? routeUrl(e.route) : null,
+    }));
+  }
+  return { ...data, source: { mode: 'live', rpc: RPC } };
 }

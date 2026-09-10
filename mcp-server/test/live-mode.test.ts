@@ -12,8 +12,8 @@ import { withTempRuns } from './helpers.js';
 import * as runlog from '../src/runlog.js';
 import { requireEnv, request, pageMayBeTruncated } from '../src/live/http.js';
 import { addDays, isDateOnly, untilExclusiveMs } from '../src/live/period.js';
-import { systemHealth } from '../src/live/vercel.js';
-import { toDate } from '../src/live/supabase.js';
+import { deploymentLinks, systemHealth } from '../src/live/vercel.js';
+import { routeUrl, toDate } from '../src/live/supabase.js';
 
 /** OPS_MODE 를 바꿔 놓고 되돌린다. 앞선 검사로 새어 나가지 않게. */
 function withMode<T>(mode: 'live' | 'fixture', fn: () => T): T {
@@ -249,5 +249,26 @@ test('입력 검증 — 네트워크에 닿기 전에 거절한다', async (t) =
   t.test('addDays 는 월 경계를 넘는다', () => {
     assert.equal(addDays('2026-01-31', 1), '2026-02-01');
     assert.equal(addDays('2026-09-10', 1), '2026-09-11');
+  });
+
+  // 에러에서 찾아갈 링크. 모르면 null 이다 — 없는 링크를 지어내지 않는다.
+  t.test('배포 링크는 Vercel URL·GitHub 커밋 URL 을 붙인다', () => {
+    assert.deepEqual(
+      deploymentLinks({
+        url: 'already-got-abc-byeunya.vercel.app',
+        meta: {
+          githubHost: 'github.com', githubCommitOrg: 'hey-byeunya',
+          githubCommitRepo: 'already-got-it', githubCommitSha: 'dfe7883c93a9ca4',
+        },
+      }),
+      { url: 'https://already-got-abc-byeunya.vercel.app',
+        commit_url: 'https://github.com/hey-byeunya/already-got-it/commit/dfe7883c93a9ca4' },
+    );
+    assert.deepEqual(deploymentLinks({}), { url: null, commit_url: null });
+  });
+
+  t.test('에러 route 링크는 페이지만 붙인다 — Server Action 에는 없다', () => {
+    assert.equal(routeUrl('/items/1f9ae2da'), 'https://already-got-it.vercel.app/items/1f9ae2da');
+    assert.equal(routeUrl('action:deleteOwnedItem'), null);
   });
 });

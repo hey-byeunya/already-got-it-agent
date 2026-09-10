@@ -87,6 +87,7 @@ export function registerAllTools(server: McpServer): void {
     description:
       '「이미 있어」의 배포와 실행 상태를 가져온다. 시스템이 이번 기간에 문제가 없었는지 확인할 때 '
       + '가장 먼저 호출한다. 배포 성공/실패, 빌드 오류 원문, 함수 오류 수를 돌려준다. '
+      + '배포마다 찾아갈 링크(`url`·`commit_url`)가 있다 — 빌드 에러를 이슈·카드에 적을 때 함께 쓴다. '
       + '시스템 상태를 추측하지 말고 반드시 이 도구로 확인한다. '
       + 'unavailable_fields 에 담긴 항목은 조회하지 못한 것이며 0 이 아니다 — 결측과 0 을 구별해 서술한다.',
     inputSchema: z.object({ ...baseInput, ...period }),
@@ -103,6 +104,7 @@ export function registerAllTools(server: McpServer): void {
     description:
       '「이미 있어」 사용자 활동의 집계 지표를 가져온다. 가입 추이, 있템·위시 등록 수, 활성 사용자를 '
       + '기간별로 돌려준다. 개별 사용자나 개별 물건은 조회할 수 없다 — 이 도구는 집계값만 반환한다. '
+      + '에러 다발 route(`errors_by_route`)마다 찾아갈 링크(`url`)가 있다 — 앱 에러를 이슈·카드에 적을 때 함께 쓴다. '
       + 'previous_period_totals 가 있어야 늘었는지 줄었는지 말할 수 있다. null 이면 비교하지 않는다.',
     inputSchema: z.object({ ...baseInput, ...period,
       granularity: z.enum(['day', 'week']).default('day').describe('집계 단위') }),

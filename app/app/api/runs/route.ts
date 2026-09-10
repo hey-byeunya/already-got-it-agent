@@ -99,6 +99,8 @@ export async function POST(req: Request) {
     + (focus ? ` 특히 ${focus} 축을 깊게 본다.` : '')
     + ` 스토리보드를 제시한 뒤, 지표 카드는 render_chart 로 실제 SVG 까지 그려라.`
     + ` 손봐야 할 것이 있으면 create_github_issue 를 호출해 이슈 생성을 제안해라.`
+    + ` 앱 에러·배포 실패는 route·건수와 찾아갈 링크를 본문에 넣어라`
+    + ` (errors_by_route[].url, deployments[]의 url·commit_url. null 이면 이름만).`
   );
 
   store.createRun({ runId, fixtureId, goal, engine, ...(focus ? { focus } : {}), period });
