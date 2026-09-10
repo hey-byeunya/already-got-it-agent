@@ -23,7 +23,7 @@ type Conflict = { code: string; message: string };
 const POLL_MS = 1200;
 const NARROW = 1080;
 /** 로그 한 쪽에 담는 줄 수. 실행 하나가 60줄을 넘기니 전부 펼치면 스크롤이 감당이 안 된다. */
-const LOG_PAGE = 20;
+const LOG_PAGE = 10;
 
 /** 트레이스 kind → 글리프와 색. kind 는 원래 저장되는데 전에는 화면이 버렸다. */
 function glyph(e: TraceEvent): { mark: string; cls: string; group: 'tool' | 'think' | 'err' } {
@@ -126,6 +126,55 @@ function stamp(v: string): string {
 }
 
 /**
+ * 질문 글. **줄바꿈을 살린다.**
+ *
+ * 에이전트는 «질문 한 줄 + 빈 줄 + 번호 매긴 목록» 으로 적는다. 그런데 화면이
+ * 그것을 한 덩어리로 그려 여백이 모두 뭉개졌다 — 굵은 글씨 열 줄이 통째로 이어져
+ * 무엇을 묻는지조차 눈에 안 들어왔다.
+ *
+ * 첫 덩이(묻는 문장)만 굵게 두고, 나머지는 본문으로 내린다.
+ * 한 줄이 너무 길면 눈이 다음 줄 첫머리를 못 찾으므로 폭도 묶는다.
+ */
+function QuestionText({ text, multi }: { text: string; multi: boolean }) {
+  const cut = text.indexOf('\n\n');
+  const lead = (cut === -1 ? text : text.slice(0, cut)).trim();
+  const body = cut === -1 ? '' : text.slice(cut + 2).trim();
+  return (
+    <div style={{ marginBottom: 10, maxWidth: '76ch' }}>
+      <div className="prose"
+        style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', wordBreak: 'keep-all' }}>
+        {lead}
+        {multi && <span className="note" style={{ fontWeight: 400 }}> · 여러 개 고를 수 있다</span>}
+      </div>
+      {/*
+        줄마다 따로 그린다. 한 덩이에 text-indent 를 주면 첫 줄에만 걸려
+        2번부터가 통째로 밀린다 (실제로 그렇게 만들어 보고 알았다).
+        줄 단위로 주어야 「번호는 왼쪽, 넘어간 줄은 번호 오른쪽」이 된다.
+      */}
+      {body && (
+        <div className="prose" style={{
+          wordBreak: 'keep-all', fontSize: 13, lineHeight: 1.85,
+          color: 'var(--prose)', marginTop: 8,
+        }}>
+          {body.split('\n').map((line, i) => {
+            if (!line.trim()) return <div key={i} style={{ height: 9 }} />;
+            // 매달린 들여쓰기는 «항목» 에만 준다. 그냥 문단에 주면 넘어간 줄이
+            // 까닭 없이 밀려 들어가 목록처럼 읽힌다.
+            const listy = /^\s*(\d+[.)]|[-*·])\s/.test(line);
+            return (
+              <div key={i}
+                style={listy ? { paddingLeft: '1.7em', textIndent: '-1.7em' } : undefined}>
+                {line}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * 질문 게이트.
  *
  * **한 번에 다 고른 뒤 한 번만 보낸다.** 전에는 선택지 버튼이 저마다 바로 보냈다 -
@@ -166,11 +215,7 @@ function QuestionGate({ q, busy, onSubmit }: {
         const chosen = by[x.question] ?? [];
         return (
           <div key={x.question} style={{ marginTop: 12 }}>
-            <div className="prose"
-              style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 10 }}>
-              {x.question}
-              {x.multiSelect && <span className="note" style={{ fontWeight: 400 }}> · 여러 개 고를 수 있다</span>}
-            </div>
+            <QuestionText text={x.question} multi={Boolean(x.multiSelect)} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(228px,1fr))', gap: 9 }}>
               {x.options.map((o, i) => (
                 <button className="opt" key={o.label} disabled={busy}
