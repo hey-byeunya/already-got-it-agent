@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { withTempRuns } from './helpers.js';
 import * as runlog from '../src/runlog.js';
 import { requireEnv, request, pageMayBeTruncated } from '../src/live/http.js';
+import { addDays, isDateOnly, untilExclusiveMs } from '../src/live/period.js';
 import { systemHealth } from '../src/live/vercel.js';
 import { toDate } from '../src/live/supabase.js';
 
@@ -225,5 +226,28 @@ test('입력 검증 — 네트워크에 닿기 전에 거절한다', async (t) =
       () => toDate('2026-02-30', 'since'),
       (e: any) => e.code === 'invalid_period',
     );
+  });
+
+  // 관측한 문제: until "2026-09-10" 이 UTC 자정으로 읽혀 당일 배포 9건·에러 4건이
+  // 통째로 빠지고 "배포 0건"이 카드에 올랐다. 날짜만 온 until 은 그 날 끝까지 포함한다.
+  t.test('날짜만 온 until 은 하루를 더해 inclusive day 로 읽는다', () => {
+    assert.equal(untilExclusiveMs('2026-09-10'), Date.parse('2026-09-11'));
+    assert.equal(isDateOnly('2026-09-10'), true);
+    assert.equal(isDateOnly(' 2026-09-10 '), true);
+  });
+
+  t.test('시각까지 온 until 은 정확한 instant 로 둔다 — CLI 의 toISOString 을 바꾸지 않는다', () => {
+    const full = '2026-09-10T07:37:00.000Z';
+    assert.equal(untilExclusiveMs(full), Date.parse(full));
+    assert.equal(isDateOnly(full), false);
+  });
+
+  t.test('읽히지 않는 until 은 NaN 으로 호출자 검사에 맡긴다', () => {
+    assert.ok(Number.isNaN(untilExclusiveMs('not-a-date')));
+  });
+
+  t.test('addDays 는 월 경계를 넘는다', () => {
+    assert.equal(addDays('2026-01-31', 1), '2026-02-01');
+    assert.equal(addDays('2026-09-10', 1), '2026-09-11');
   });
 });

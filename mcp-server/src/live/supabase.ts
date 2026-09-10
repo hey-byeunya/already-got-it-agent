@@ -9,6 +9,7 @@
  */
 import { FatalToolError, ToolError } from '../errors.js';
 import { request, requireEnv } from './http.js';
+import { addDays, isDateOnly } from './period.js';
 
 const RPC = 'ops_user_metrics';
 
@@ -50,6 +51,10 @@ export async function userMetrics(
   const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
   let out: unknown;
+  // RPC 는 until 을 exclusive 로 읽는다. 날짜만 온 until 은 하루를 더해
+  // 그 날 하루치를 포함한다 — 그대로 넘기면 당일 집계가 통째로 빠진다 (period.ts).
+  const untilDate = toDate(period.until, 'until');
+  const pUntil = isDateOnly(period.until) ? addDays(untilDate, 1) : untilDate;
   try {
     out = await request({
       source: 'Supabase',
@@ -59,7 +64,7 @@ export async function userMetrics(
       body: {
         p_token: env.OPS_METRICS_TOKEN!,
         p_since: toDate(period.since, 'since'),
-        p_until: toDate(period.until, 'until'),
+        p_until: pUntil,
         p_granularity: granularity,
       },
     });

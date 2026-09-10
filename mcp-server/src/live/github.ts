@@ -6,6 +6,7 @@
  */
 import { ToolError } from '../errors.js';
 import { pageMayBeTruncated, request, requireEnv } from './http.js';
+import { untilExclusiveMs } from './period.js';
 
 const API = 'https://api.github.com';
 
@@ -39,7 +40,8 @@ export async function devActivity(
   repo: string, period: { since: string; until: string },
 ): Promise<Record<string, unknown>> {
   const h = headers();
-  const now = Date.parse(period.until);
+  // 날짜만 온 until 은 그 날 끝까지 포함한다 — 그대로 쓰면 당일 병합이 빠진다 (period.ts).
+  const now = untilExclusiveMs(period.until);
   const q = `since=${encodeURIComponent(period.since)}&until=${encodeURIComponent(period.until)}`;
 
   const [issuesRaw, commitsRaw, openPulls, closedPulls] = await Promise.all([

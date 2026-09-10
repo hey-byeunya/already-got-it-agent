@@ -11,6 +11,7 @@
  */
 import { FatalToolError } from '../errors.js';
 import { pageMayBeTruncated, request, requireEnv } from './http.js';
+import { untilExclusiveMs } from './period.js';
 
 const API = 'https://api.vercel.com';
 
@@ -44,7 +45,9 @@ export async function systemHealth(
   const auth = { authorization: `Bearer ${token}` };
 
   const since = Date.parse(period.since);
-  const until = Date.parse(period.until);
+  // 날짜만 온 until("2026-09-10")은 그 날 끝까지 포함한다 —
+  // 그대로 넘기면 당일 배포가 통째로 빠져 "배포 0건"이 된다 (period.ts).
+  const until = untilExclusiveMs(period.until);
   if (!Number.isFinite(since) || !Number.isFinite(until)) {
     throw new FatalToolError('invalid_period', 'period 의 since/until 이 ISO 8601 이 아니다',
       { since: period.since, until: period.until });
